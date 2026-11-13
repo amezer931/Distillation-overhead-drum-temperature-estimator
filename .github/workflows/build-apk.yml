@@ -26,8 +26,8 @@ jobs:
       - name: Publish APK as a release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.3
-          name: Column Overhead Temp v1.3
+          tag_name: v1.4
+          name: Column Overhead Temp v1.4
           body: |
             Distillation Column Overhead Temperature Estimator for Android (5.0 and newer).
             Developer: Process engineer Ahmed Mezer.

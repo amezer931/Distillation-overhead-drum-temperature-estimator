@@ -16,7 +16,7 @@ Works offline on Android 5.0 and newer. All versions are on the [releases page](
 
 - 26 pure components from C1 to C7 (paraffins, iso-paraffins, naphthenes, benzene)
   from a built-in database, and petroleum cuts.
-- Flow as volume flow or lbmol/h.
+- Composition as flow rates (volume or molar), vol.% or mol.%; switching converts the entered values.
 - Cuts from density and ASTM D86: VABP and MeABP by API TDB Procedure 2B1.1,
   molecular weight by API TDB equation 2B2.1-1.
 - Critical properties by Riazi-Daubert, acentric factor by Lee-Kesler, K-values by Wilson.

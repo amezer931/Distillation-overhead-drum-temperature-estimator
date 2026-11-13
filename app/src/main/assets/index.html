@@ -121,7 +121,9 @@ footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);paddin
 
   <section class="sec">
     <h2>1 · Overhead components</h2>
-    <p class="hint">Enter volume flow or molar flow (lbmol/h). For a cut, enter the density with the ASTM D86 points, or the density with VABP and Mwt. Shaded fields are calculated.</p>
+    <p class="hint">Choose how the composition is entered: flow rates (volume or molar), vol.% or mol.%. For a cut, enter the density with the ASTM D86 points, or the density with VABP and Mwt. Shaded fields are calculated.</p>
+    <label class="f" style="max-width:280px"><span>Composition input</span><select id="basis">
+      <option value="flow">Flow rates (volume or molar)</option><option value="vol">Vol.%</option><option value="mol">Mol.%</option></select></label>
     <div id="comps" class="sec"></div>
     <div class="btns">
       <button class="b" data-act="add-pure">+ Pure component</button>
@@ -158,7 +160,7 @@ footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);paddin
 
   <footer>
     <span>Developed by Process engineer: Ahmed Mezer</span>
-    <span>Version 1.3 · API TDB 2B1.1, 2B2.1 · Wilson K-values</span>
+    <span>Version 1.4 · API TDB 2B1.1, 2B2.1 · Wilson K-values</span>
   </footer>
 </div>
 <div id="report"></div>
@@ -245,7 +247,7 @@ function kval(d,tF,phc){const Tr=FtoK(tF)/d.tcK,Pr=(phc/PSI_BAR)/d.pcBar;return 
 /* ---------------- state ---------------- */
 const KEY="dcot-state-v1";
 function example(){return {
-  units:{T:"°F",P:"kg/cm²g",D:"API",V:"BPSD"},
+  units:{T:"°F",P:"kg/cm²g",D:"API",V:"BPSD"},basis:"flow",
   op:{pPsia:0.5*PSI_KG+ATM,t1F:130,t2F:160,step:5,tb:"VABP",steam:true},
   comps:[["C3",28.56],["iC4",24.03],["nC4",155.49],["iC5",92.24],["nC5",187.62],["cC5",10.93]]
     .map(([code,m])=>newPure(code,m)).concat([
@@ -256,6 +258,7 @@ let S;
 try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
 if(!S||!S.comps||!S.op||!S.units)S=example();
 if(S.op.steam===undefined)S.op.steam=true;
+if(!S.basis)S.basis="flow";
 if(!S.units.D)S.units.D="API";if(!S.units.V)S.units.V="BPSD";
 S.comps.forEach(c=>{if(c.type==="cut"&&c.sg===undefined)c.sg=num(c.api)?141.5/(131.5+c.api):null});
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
@@ -283,12 +286,25 @@ function derive(c){
     d.tbF=d.tbBasis==="MeABP"?d.meabpF:d.vabpF;
     if(num(d.tbF)&&num(d.sg))Object.assign(d,crit(d.tbF,d.sg));
   }
-  if(num(c.bpsd)){d.fromBpsd=true;d.bpsd=c.bpsd;
+  const B=S.basis;
+  if(B!=="mol"&&num(c.bpsd)){d.fromBpsd=true;d.bpsd=c.bpsd;
     if(num(d.mw)&&num(d.sg)&&d.mw>0)d.flow=c.bpsd*LB_BBL*d.sg/(24*d.mw);
-    else d.issues.push(c.type==="cut"?"BPSD needs Mwt: enter the D86 points or Mwt":"select the component");
-  }else if(num(c.molar))d.flow=c.molar;else d.issues.push("enter volume flow or molar flow");
+    else d.issues.push(c.type==="cut"?"volume input needs Mwt: enter the D86 points or Mwt":"select the component");
+  }else if(B==="vol")d.issues.push("enter the vol.%");
+  else if(num(c.molar))d.flow=c.molar;
+  else d.issues.push(B==="mol"?"enter the mol.%":"enter volume flow or molar flow");
   if(num(d.flow)&&d.flow<0)d.issues.push("flow cannot be negative");
   return d}
+
+/* switch composition basis, converting what is already entered */
+function setBasis(nb){
+  const ds=S.comps.map(derive),ok=ds.length>0&&ds.every(d=>num(d.flow));
+  if(nb==="mol"&&ok){const t=ds.reduce((a,d)=>a+d.flow,0);
+    if(t>0)S.comps.forEach((c,i)=>{c.molar=+(100*ds[i].flow/t).toFixed(4);c.bpsd=null})}
+  else if(nb==="vol"&&ok&&ds.every(d=>num(d.mw)&&num(d.sg))){const v=ds.map(d=>d.flow*d.mw/d.sg),t=v.reduce((a,x)=>a+x,0);
+    if(t>0)S.comps.forEach((c,i)=>{c.bpsd=+(100*v[i]/t).toFixed(4);c.molar=null})}
+  S.basis=nb}
+const BASIS_LABEL={flow:"Flow rates",vol:"Vol.%",mol:"Mol.%"};
 
 /* ---------------- rendering helpers ---------------- */
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
@@ -302,7 +318,8 @@ function cardHTML(c,i){
   const who=c.type==="pure"
     ? `<select id="c${i}-code" data-i="${i}" data-k="code" aria-label="Component"><option value="">Select component…</option>${PURE.map(p=>`<option value="${p.code}"${p.code===c.code?" selected":""}>${p.code} – ${p.name}</option>`).join("")}</select>`
     : `<input id="c${i}-name" data-i="${i}" data-k="name" value="${esc(c.name||"")}" aria-label="Cut name" style="font-family:var(--f-body)">`;
-  let body=`<div class="grid">${field(i,"bpsd",`Flow, ${V()}`)}${field(i,"molar","Flow, lbmol/h")}`;
+  const B=S.basis;
+  let body=`<div class="grid">${B==="mol"?"":field(i,"bpsd",B==="vol"?"Vol.%":`Flow, ${V()}`)}${B==="mol"?field(i,"molar","Mol.%"):B==="vol"?out(i,"molar","lbmol/h per 100 BPSD"):field(i,"molar","Flow, lbmol/h")}`;
   if(c.type==="pure"){
     body+=`${out(i,"mwo","Mwt")}${out(i,"deno",`Density, ${D()}`)}${out(i,"sgo","SG 60/60")}</div>
       <span class="sub">Critical properties (database, editable)</span>
@@ -323,8 +340,8 @@ function setF(i,k,val,calc,dig){
 }
 function updateCard(i){
   const c=S.comps[i],d=derive(c);
-  setF(i,"bpsd",num(c.bpsd)?fromBPSD(c.bpsd,V()):null,false);
-  setF(i,"molar",d.fromBpsd?d.flow:c.molar,!!d.fromBpsd,2);
+  setF(i,"bpsd",num(c.bpsd)?(S.basis==="vol"?c.bpsd:fromBPSD(c.bpsd,V())):null,false);
+  setF(i,"molar",(d.fromBpsd||S.basis==="vol")?d.flow:c.molar,!!d.fromBpsd||S.basis==="vol",2);
   setF(i,"sgo",d.sg,true,4);
   if(c.type==="pure"){
     setF(i,"mwo",d.mw,true,3);setF(i,"deno",num(d.sg)?fromSG(d.sg,D()):null,true,dDig(D()));
@@ -401,12 +418,15 @@ function calc(){
   if(sum(lo)<=total&&sum(hi)>=total){for(let n=0;n<100;n++){const m=(lo+hi)/2;if(sum(m)>total)hi=m;else lo=m}exact=(lo+hi)/2}
   const step=o.step,TdesD=Math.floor(TintD/step)*step;
   const outside=TintD<Math.min(T1D,T2D)||TintD>Math.max(T1D,T2D);
+  const pctSum=S.basis==="vol"?S.comps.reduce((a,c)=>a+(c.bpsd||0),0):S.basis==="mol"?S.comps.reduce((a,c)=>a+(c.molar||0),0):100;
+  const pctOff=S.basis!=="flow"&&Math.abs(pctSum-100)>0.01;
+  const pctNote=pctOff?`<div class="hint">Σ ${BASIS_LABEL[S.basis]} = ${pctSum.toFixed(2)}, not 100. The values are used as ratios.</div>`:"";
   ro.className="readout";
   ro.innerHTML=`<div><span class="lab">Overhead drum temperature (interpolated)</span><div class="big">${TintD.toFixed(1)} ${tu}</div></div>
    <div class="row"><div><span class="lab">Design temperature</span><div class="v">${+TdesD.toFixed(2)} ${tu}</div></div>
    <div><span class="lab">Steam used</span><div class="v">${o.steam?"Yes":"No"}</div></div>
    <div><span class="lab">Exact root (iteration)</span><div class="v">${num(exact)?fromF(exact,tu).toFixed(1)+" "+tu:"—"}</div></div></div>
-   ${outside?`<div class="msg">The result lies outside T1–T2. Move the trial temperatures closer to it and recalculate.</div>`:""}`;
+   ${pctNote}${outside?`<div class="msg">The result lies outside T1–T2. Move the trial temperatures closer to it and recalculate.</div>`:""}`;
 
   const pd=pDig(pa);
   tab.innerHTML=`<table><thead><tr><th>Component</th><th>fi, lbmol/h</th><th>Mwt</th><th>Tc, ${tu}</th><th>Pc, ${pa}</th><th>ω</th><th>Ki @ ${+T1D.toFixed(1)}</th><th>fi·Ki @ ${+T1D.toFixed(1)}</th><th>Ki @ ${+T2D.toFixed(1)}</th><th>fi·Ki @ ${+T2D.toFixed(1)}</th></tr></thead><tbody>${
@@ -445,10 +465,12 @@ function calc(){
     A(`    Pc = 5.53027E7 × ${Tb.toFixed(2)}^-2.3125 × ${d.sg.toFixed(4)}^2.3201 = ${d.pcBar.toFixed(3)} bar${inPb(d.pcBar)}`);
     A(`    Tbr = ${Tb.toFixed(2)} / ${d.tcK.toFixed(2)} = ${(Tb/d.tcK).toFixed(4)}  →  ω = ${d.w.toFixed(4)}  (Lee–Kesler)`);
   }
-  L.push("");H("STEP 2 – Molar flows   lbmol/h = BPSD × 350.16 × SG / (24 × Mwt)");
+  L.push("");H(S.basis==="vol"?"STEP 2 – Molar flows from vol.%   basis 100 BPSD total:  lbmol/h = vol.% × 350.16 × SG / (24 × Mwt)":
+    S.basis==="mol"?"STEP 2 – Molar flows from mol.%   basis 100 lbmol/h total:  fi = mol.%":"STEP 2 – Molar flows   lbmol/h = BPSD × 350.16 × SG / (24 × Mwt)");
   for(const d of ds){const nm=d.name.slice(0,22).padEnd(22);
-    const vu=V(),cv=vu==="BPSD"?"":`${+fromBPSD(d.bpsd||0,vu).toFixed(3)} ${vu} × ${vu==="m³/hr"?BPSD_M3H:BPSD_FT3H} = ${(d.bpsd||0).toFixed(1)} BPSD;  `;
-    A(d.fromBpsd?`  ${nm} ${cv}${d.bpsd.toFixed(1)} × 350.16 × ${d.sg.toFixed(4)} / (24 × ${d.mw.toFixed(2)}) = ${d.flow.toFixed(2)}`:`  ${nm} ${d.flow.toFixed(2)}  (entered)`)}
+    const vu=V(),cv=(vu==="BPSD"||S.basis!=="flow")?"":`${+fromBPSD(d.bpsd||0,vu).toFixed(3)} ${vu} × ${vu==="m³/hr"?BPSD_M3H:BPSD_FT3H} = ${(d.bpsd||0).toFixed(1)} BPSD;  `;
+    A(d.fromBpsd?`  ${nm} ${cv}${+d.bpsd.toFixed(4)} × 350.16 × ${d.sg.toFixed(4)} / (24 × ${d.mw.toFixed(2)}) = ${d.flow.toFixed(2)}`:`  ${nm} ${d.flow.toFixed(2)}  (${S.basis==="mol"?"mol.% entered":"entered"})`)}
+  if(S.basis!=="flow")A(`  Σ ${BASIS_LABEL[S.basis]} = ${pctSum.toFixed(2)}${pctOff?"   (not 100: the values are used as ratios)":""}`);
   L.push(`<em>  Σ fi = ${total.toFixed(2)} lbmol/h</em>`,"");
   H("STEP 3 – Hydrocarbon partial pressure   steam used: "+(o.steam?"Yes → P_HC = P_overhead − P_water @ T":"No → P_HC = P_overhead"));
   A(`  P_overhead = ${fin(opGet("p"))} ${P()} = ${o.pPsia.toFixed(3)} psia${inPp(o.pPsia)}`);
@@ -470,9 +492,9 @@ function calc(){
   // ---- printable / copyable report
   const when=new Date().toLocaleString(),du=D(),vu=V(),n=(v,k)=>num(v)?v.toFixed(k):"";
   const opRows=[["Overhead pressure",`${fin(opGet("p"))} ${P()}`],["Trial temperature T1",`${fin(T1D)} ${tu}`],["Trial temperature T2",`${fin(T2D)} ${tu}`],
-    ["Round design T down to",`${step} ${tu}`],["Steam used",o.steam?"Yes":"No"],["Cut boiling point for Tc, Pc, ω",o.tb]];
+    ["Composition input",BASIS_LABEL[S.basis]],["Round design T down to",`${step} ${tu}`],["Steam used",o.steam?"Yes":"No"],["Cut boiling point for Tc, Pc, ω",o.tb]];
   const compRows=ds.map((d,i)=>{const c=S.comps[i],t=c.type==="cut"?c.d86.map(v=>num(v)?fromF(v,tu).toFixed(1):""):["","","","",""];
-    return `<tr><td>${i+1}</td><td>${c.type==="cut"?"Cut":"Pure"}</td><td style="text-align:left">${esc(d.name)}</td><td>${num(c.bpsd)?n(fromBPSD(c.bpsd,vu),2):""}</td><td>${n(d.flow,2)}</td><td>${n(fromSG(d.sg,du),dDig(du))}</td><td>${n(d.sg,4)}</td>${t.map(x=>`<td>${x}</td>`).join("")}<td>${num(d.vabpF)?fromF(d.vabpF,tu).toFixed(1):""}</td><td>${num(d.meabpF)?fromF(d.meabpF,tu).toFixed(1):""}</td><td>${n(d.mw,2)}</td><td>${fromF(KtoF(d.tcK),tu).toFixed(1)}</td><td>${fromPsia(d.pcBar*PSI_BAR,pa).toFixed(pd)}</td><td>${d.w.toFixed(4)}</td></tr>`}).join("");
+    return `<tr><td>${i+1}</td><td>${c.type==="cut"?"Cut":"Pure"}</td><td style="text-align:left">${esc(d.name)}</td><td>${S.basis==="mol"||!num(c.bpsd)?"":S.basis==="vol"?n(c.bpsd,2):n(fromBPSD(c.bpsd,vu),2)}</td><td>${n(d.flow,2)}</td><td>${n(fromSG(d.sg,du),dDig(du))}</td><td>${n(d.sg,4)}</td>${t.map(x=>`<td>${x}</td>`).join("")}<td>${num(d.vabpF)?fromF(d.vabpF,tu).toFixed(1):""}</td><td>${num(d.meabpF)?fromF(d.meabpF,tu).toFixed(1):""}</td><td>${n(d.mw,2)}</td><td>${fromF(KtoF(d.tcK),tu).toFixed(1)}</td><td>${fromPsia(d.pcBar*PSI_BAR,pa).toFixed(pd)}</td><td>${d.w.toFixed(4)}</td></tr>`}).join("");
   const resLine=`Overhead drum temperature = ${TintD.toFixed(1)} ${tu}   |   Design temperature = ${+TdesD.toFixed(2)} ${tu}   |   Steam used: ${o.steam?"Yes":"No"}`;
   document.getElementById("report").innerHTML=`<h1>Distillation Column Overhead Temperature Estimator</h1>
    <p>Developer: <b>${DEV}</b></p><p>Report date: ${esc(when)}</p>
@@ -480,7 +502,7 @@ function calc(){
    <p>Units: temperature ${tu}, pressure ${esc(P())}, density ${du}, volume flow ${vu}, molar flow lbmol/h</p>
    <table><tbody>${opRows.map(r=>`<tr><td style="text-align:left">${r[0]}</td><td style="text-align:left">${esc(r[1])}</td></tr>`).join("")}</tbody></table>
    <p>&nbsp;</p>
-   <table><thead><tr><th>#</th><th>Type</th><th>Component</th><th>Volume flow, ${vu}</th><th>Molar flow, lbmol/h</th><th>Density, ${du}</th><th>SG</th><th>D86 10%</th><th>30%</th><th>50%</th><th>70%</th><th>90% (${tu})</th><th>VABP, ${tu}</th><th>MeABP, ${tu}</th><th>Mwt</th><th>Tc, ${tu}</th><th>Pc, ${pa}</th><th>ω</th></tr></thead><tbody>${compRows}</tbody></table>
+   <table><thead><tr><th>#</th><th>Type</th><th>Component</th><th>${S.basis==="vol"?"Vol.%":S.basis==="mol"?"":"Volume flow, "+vu}</th><th>${S.basis==="mol"?"Mol.%":"Molar flow, lbmol/h"}</th><th>Density, ${du}</th><th>SG</th><th>D86 10%</th><th>30%</th><th>50%</th><th>70%</th><th>90% (${tu})</th><th>VABP, ${tu}</th><th>MeABP, ${tu}</th><th>Mwt</th><th>Tc, ${tu}</th><th>Pc, ${pa}</th><th>ω</th></tr></thead><tbody>${compRows}</tbody></table>
    <h2>Result</h2><p class="res">${resLine}</p>${outside?"<p>Note: the result lies outside T1–T2.</p>":""}
    <h2>Step-by-step calculation</h2><pre>${L.join("\n")}</pre>
    <p>&nbsp;</p><p>Developer: ${DEV}</p>`;
@@ -531,6 +553,12 @@ const EQ=`<b>A) Average boiling points from ASTM D86 – API TDB Procedure 2B1.1
 <b>I) Design temperature</b>
    Design T = interpolated T rounded down (e.g. to the nearest 5°)
 
+<b>K) Composition input</b>
+   Flow rates:  volume flow (converted to lbmol/h as in C) or molar flow per component
+   Vol.%:  basis 100 BPSD total, so  fi = vol.% × 350.16 × SG / (24 × Mwt)
+   Mol.%:  basis 100 lbmol/h total, so  fi = mol.%
+   <i>Only the ratios between components affect the drum temperature.</i>
+
 <b>J) Unit conversions</b>
    Density:  SG = 141.5 / (131.5 + API) = ρ[kg/m³] / 999.016 = ρ[lb/ft³] / 62.3664
    Volume flow:  BPSD = m³/hr × 150.9555 = ft³/hr × 4.274512
@@ -547,7 +575,7 @@ compsBox.addEventListener("input",e=>{
   else if(k==="code")return;
   else{const v=parse(el.value);
     if(k==="molar"||k==="mw"||k==="w")c[k]=v;
-    else if(k==="bpsd")c.bpsd=num(v)?toBPSD(v,V()):null;
+    else if(k==="bpsd")c.bpsd=num(v)?(S.basis==="vol"?v:toBPSD(v,V())):null;
     else if(k==="dens")c.sg=num(v)?toSG(v,D()):null;
     else if(k==="vabp")c.vabpF=num(v)?toF(v,T()):null;
     else if(k[0]==="d")c.d86[+k[1]]=num(v)?toF(v,T()):null;
@@ -580,11 +608,13 @@ function fillUnits(){
   const ut=document.getElementById("u-t"),up=document.getElementById("u-p");
   ut.innerHTML=TUNITS.map(u=>`<option${u===T()?" selected":""}>${u}</option>`).join("");
   up.innerHTML=PUNITS.map(u=>`<option${u===P()?" selected":""}>${u}</option>`).join("");
+  document.getElementById("basis").value=S.basis;
   document.getElementById("u-d").innerHTML=DUNITS.map(u=>`<option${u===D()?" selected":""}>${u}</option>`).join("");
   document.getElementById("u-v").innerHTML=VUNITS.map(u=>`<option${u===V()?" selected":""}>${u}</option>`).join("");
 }
 document.getElementById("u-t").addEventListener("change",e=>{S.units.T=e.target.value;renderAll()});
 document.getElementById("u-p").addEventListener("change",e=>{S.units.P=e.target.value;renderAll()});
+document.getElementById("basis").addEventListener("change",e=>{setBasis(e.target.value);renderAll()});
 document.getElementById("u-d").addEventListener("change",e=>{S.units.D=e.target.value;renderAll()});
 document.getElementById("u-v").addEventListener("change",e=>{S.units.V=e.target.value;renderAll()});
 const hasPrint=!!(window.AndroidBridge&&window.AndroidBridge.printReport);
