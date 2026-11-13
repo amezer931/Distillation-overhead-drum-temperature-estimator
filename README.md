@@ -7,13 +7,15 @@ from the overhead component flows.
 
 ## Download
 
-Get **ColumnOverheadTemp.apk** from the [latest release](../../releases/latest),
-open it on the phone and allow installation from unknown sources.
-Works offline on Android 5.0 and newer.
+**[Download ColumnOverheadTemp.apk (latest version)](../../releases/latest/download/ColumnOverheadTemp.apk)**
+
+Open the file on the phone and allow installation from unknown sources.
+Works offline on Android 5.0 and newer. All versions are on the [releases page](../../releases).
 
 ## What it does
 
-- Pure components (C1 to C5, cyclopentane) from a built-in database, and petroleum cuts.
+- 26 pure components from C1 to C7 (paraffins, iso-paraffins, naphthenes, benzene)
+  from a built-in database, and petroleum cuts.
 - Flow as volume flow or lbmol/h.
 - Cuts from density and ASTM D86: VABP and MeABP by API TDB Procedure 2B1.1,
   molecular weight by API TDB equation 2B2.1-1.

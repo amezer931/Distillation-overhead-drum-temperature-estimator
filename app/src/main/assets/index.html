@@ -158,7 +158,7 @@ footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);paddin
 
   <footer>
     <span>Developed by Process engineer: Ahmed Mezer</span>
-    <span>Version 1.2 · API TDB 2B1.1, 2B2.1 · Wilson K-values</span>
+    <span>Version 1.3 · API TDB 2B1.1, 2B2.1 · Wilson K-values</span>
   </footer>
 </div>
 <div id="report"></div>
@@ -176,7 +176,24 @@ const PURE=[ // Mw, liquid SG 60/60, Tc K, Pc bar, omega (C3..cC5 Tc/Pc as in wo
  {code:"neoC5",name:"Neopentane",mw:72.15,sg:0.5966,tc:433.8,pc:31.99,w:0.1964},
  {code:"iC5",name:"Isopentane",mw:72.15,sg:0.6246,tc:460.4,pc:33.81,w:0.227},
  {code:"nC5",name:"n-Pentane",mw:72.15,sg:0.6311,tc:469.7,pc:33.69,w:0.251},
- {code:"cC5",name:"Cyclopentane",mw:70.134,sg:0.7506,tc:518.6,pc:45.07,w:0.195}];
+ {code:"22DMB",name:"2,2-Dimethylbutane",mw:86.177,sg:0.654,tc:489.0,pc:30.8,w:0.233},
+ {code:"cC5",name:"Cyclopentane",mw:70.134,sg:0.7506,tc:518.6,pc:45.07,w:0.195},
+ {code:"23DMB",name:"2,3-Dimethylbutane",mw:86.177,sg:0.6664,tc:500.0,pc:31.3,w:0.248},
+ {code:"2MP",name:"2-Methylpentane",mw:86.177,sg:0.6579,tc:497.7,pc:30.4,w:0.278},
+ {code:"3MP",name:"3-Methylpentane",mw:86.177,sg:0.669,tc:504.6,pc:31.2,w:0.273},
+ {code:"nC6",name:"n-Hexane",mw:86.177,sg:0.664,tc:507.6,pc:30.25,w:0.3013},
+ {code:"22DMP",name:"2,2-Dimethylpentane",mw:100.204,sg:0.6782,tc:520.5,pc:27.7,w:0.287},
+ {code:"MCP",name:"Methylcyclopentane",mw:84.161,sg:0.754,tc:532.8,pc:37.85,w:0.23},
+ {code:"24DMP",name:"2,4-Dimethylpentane",mw:100.204,sg:0.6773,tc:519.8,pc:27.4,w:0.304},
+ {code:"BEN",name:"Benzene",mw:78.114,sg:0.8845,tc:562.05,pc:48.95,w:0.2103},
+ {code:"cC6",name:"Cyclohexane",mw:84.161,sg:0.7834,tc:553.8,pc:40.8,w:0.211},
+ {code:"2MHx",name:"2-Methylhexane",mw:100.204,sg:0.683,tc:530.4,pc:27.3,w:0.331},
+ {code:"23DMP",name:"2,3-Dimethylpentane",mw:100.204,sg:0.6994,tc:537.3,pc:29.1,w:0.297},
+ {code:"3MHx",name:"3-Methylhexane",mw:100.204,sg:0.6917,tc:535.2,pc:28.1,w:0.323},
+ {code:"c13DMCP",name:"cis-1,3-Dimethylcyclopentane",mw:98.188,sg:0.7493,tc:551.0,pc:34.0,w:0.276},
+ {code:"t13DMCP",name:"trans-1,3-Dimethylcyclopentane",mw:98.188,sg:0.7532,tc:553.0,pc:34.0,w:0.253},
+ {code:"nC7",name:"n-Heptane",mw:100.204,sg:0.6882,tc:540.2,pc:27.4,w:0.3495},
+ {code:"MCH",name:"Methylcyclohexane",mw:98.188,sg:0.774,tc:572.2,pc:34.7,w:0.235}];
 const TUNITS=["°F","°C","K","°R"];
 const DUNITS=["API","SG","kg/m³","lb/ft³"], VUNITS=["BPSD","m³/hr","ft³/hr"];
 const RHO_KG=999.016, RHO_LB=62.3664;           // water at 60 °F
