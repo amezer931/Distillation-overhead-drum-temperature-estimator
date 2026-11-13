@@ -85,6 +85,21 @@ pre{margin:0;padding:12px;font:12.5px/1.55 var(--f-mono);white-space:pre;color:v
 pre b{color:var(--accent)} pre i{font-style:normal;color:var(--muted)} pre em{font-style:normal;font-weight:600;color:var(--hot)}
 footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;display:flex;flex-wrap:wrap;gap:4px 14px;justify-content:space-between}
 .hint{font-size:12.5px;color:var(--muted)}
+#report{display:none}
+@media print{
+  body{background:#fff!important}
+  .wrap{display:none!important}
+  #report{display:block;font:9pt/1.35 var(--f-body);padding:0}
+  #report,#report *{color:#000!important;background:transparent!important}
+  #report h1{font:700 15pt var(--f-display);margin:0}
+  #report h2{font:700 10pt var(--f-display);margin:10pt 0 4pt;letter-spacing:.08em;border-bottom:1px solid #000;padding-bottom:2pt}
+  #report p{margin:2pt 0}
+  #report table{font-size:6.5pt;width:100%}
+  #report th,#report td{padding:2pt 3pt;border:.5pt solid #888;white-space:normal}
+  #report pre{font-size:6.6pt;line-height:1.4;white-space:pre-wrap;padding:0}
+  #report .res{font:700 12pt var(--f-display)}
+  @page{margin:12mm}
+}
 @media (prefers-reduced-motion: no-preference){.readout{transition:background-color .2s}}
 </style>
 
@@ -100,11 +115,13 @@ footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);paddin
   <div class="units">
     <label class="f"><span>Temperature unit</span><select id="u-t"></select></label>
     <label class="f"><span>Pressure unit</span><select id="u-p"></select></label>
+    <label class="f"><span>Density unit</span><select id="u-d"></select></label>
+    <label class="f"><span>Volume flow unit</span><select id="u-v"></select></label>
   </div>
 
   <section class="sec">
     <h2>1 · Overhead components</h2>
-    <p class="hint">Enter volume flow (BPSD) or molar flow (lbmol/h). For a cut, enter API with the ASTM D86 points, or API with VABP and Mwt. Shaded fields are calculated.</p>
+    <p class="hint">Enter volume flow or molar flow (lbmol/h). For a cut, enter the density with the ASTM D86 points, or the density with VABP and Mwt. Shaded fields are calculated.</p>
     <div id="comps" class="sec"></div>
     <div class="btns">
       <button class="b" data-act="add-pure">+ Pure component</button>
@@ -132,13 +149,19 @@ footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);paddin
     <div class="panel" id="p-steps" hidden><pre id="steps"></pre></div>
     <div class="panel" id="p-eq" hidden><pre id="eq"></pre></div>
     <div class="panel" id="p-db" hidden></div>
+    <div class="btns">
+      <button class="b" id="btn-pdf" hidden>Export PDF report</button>
+      <button class="b ghost" id="btn-copy">Copy report text</button>
+      <span class="hint" id="copy-msg" role="status"></span>
+    </div>
   </section>
 
   <footer>
     <span>Developed by Process engineer: Ahmed Mezer</span>
-    <span>Version 1.1 · API TDB 2B1.1, 2B2.1 · Wilson K-values</span>
+    <span>Version 1.2 · API TDB 2B1.1, 2B2.1 · Wilson K-values</span>
   </footer>
 </div>
+<div id="report"></div>
 
 <script>
 "use strict";
@@ -155,6 +178,10 @@ const PURE=[ // Mw, liquid SG 60/60, Tc K, Pc bar, omega (C3..cC5 Tc/Pc as in wo
  {code:"nC5",name:"n-Pentane",mw:72.15,sg:0.6311,tc:469.7,pc:33.69,w:0.251},
  {code:"cC5",name:"Cyclopentane",mw:70.134,sg:0.7506,tc:518.6,pc:45.07,w:0.195}];
 const TUNITS=["°F","°C","K","°R"];
+const DUNITS=["API","SG","kg/m³","lb/ft³"], VUNITS=["BPSD","m³/hr","ft³/hr"];
+const RHO_KG=999.016, RHO_LB=62.3664;           // water at 60 °F
+const BPSD_M3H=150.9555, BPSD_FT3H=4.274512;    // BPSD per m³/hr, per ft³/hr
+const DEV="Process engineer: Ahmed Mezer";
 const PUNITS=["kg/cm²g","kg/cm² a","bar g","bar a","psig","psia","kPa g","kPa a","MPa g","MPa a","atm"];
 
 /* ---------------- units ---------------- */
@@ -169,6 +196,11 @@ function toPsia(v,u){return v*psiPer(u)+(isG(u)?ATM:0)}
 function fromPsia(p,u){return (p-(isG(u)?ATM:0))/psiPer(u)}
 function absU(u){return {"kg/cm²g":"kg/cm² a","bar g":"bar a","psig":"psia","kPa g":"kPa a","MPa g":"MPa a"}[u]||u}
 function pDig(u){return u.startsWith("kPa")?1:u.startsWith("MPa")?4:u.startsWith("psi")?2:3}
+function toSG(v,u){return u==="API"?141.5/(131.5+v):u==="kg/m³"?v/RHO_KG:u==="lb/ft³"?v/RHO_LB:v}
+function fromSG(g,u){return u==="API"?141.5/g-131.5:u==="kg/m³"?g*RHO_KG:u==="lb/ft³"?g*RHO_LB:g}
+function dDig(u){return u==="API"?1:u==="SG"?4:u==="kg/m³"?1:2}
+function toBPSD(v,u){return u==="m³/hr"?v*BPSD_M3H:u==="ft³/hr"?v*BPSD_FT3H:v}
+function fromBPSD(b,u){return u==="m³/hr"?b/BPSD_M3H:u==="ft³/hr"?b/BPSD_FT3H:b}
 const FtoK=f=>(f-32)/1.8+273.15, KtoF=k=>(k-273.15)*1.8+32;
 
 /* ---------------- correlations ---------------- */
@@ -196,19 +228,21 @@ function kval(d,tF,phc){const Tr=FtoK(tF)/d.tcK,Pr=(phc/PSI_BAR)/d.pcBar;return 
 /* ---------------- state ---------------- */
 const KEY="dcot-state-v1";
 function example(){return {
-  units:{T:"°F",P:"kg/cm²g"},
+  units:{T:"°F",P:"kg/cm²g",D:"API",V:"BPSD"},
   op:{pPsia:0.5*PSI_KG+ATM,t1F:130,t2F:160,step:5,tb:"VABP",steam:true},
   comps:[["C3",28.56],["iC4",24.03],["nC4",155.49],["iC5",92.24],["nC5",187.62],["cC5",10.93]]
     .map(([code,m])=>newPure(code,m)).concat([
      newCut("C6-200 F",676.55,76.5,162,87), newCut("200-375 F",1780.21,55.9,284,118)])}}
 function newPure(code="",molar=null){return {type:"pure",code,molar,bpsd:null,tc:null,pc:null,w:null}}
-function newCut(name="New cut",molar=null,api=null,vabpF=null,mw=null){return {type:"cut",name,molar,bpsd:null,api,d86:[null,null,null,null,null],vabpF,mw}}
+function newCut(name="New cut",molar=null,api=null,vabpF=null,mw=null){return {type:"cut",name,molar,bpsd:null,sg:api==null?null:141.5/(131.5+api),d86:[null,null,null,null,null],vabpF,mw}}
 let S;
 try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
 if(!S||!S.comps||!S.op||!S.units)S=example();
 if(S.op.steam===undefined)S.op.steam=true;
+if(!S.units.D)S.units.D="API";if(!S.units.V)S.units.V="BPSD";
+S.comps.forEach(c=>{if(c.type==="cut"&&c.sg===undefined)c.sg=num(c.api)?141.5/(131.5+c.api):null});
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-const T=()=>S.units.T, P=()=>S.units.P, PA=()=>absU(S.units.P);
+const T=()=>S.units.T, P=()=>S.units.P, PA=()=>absU(S.units.P), D=()=>S.units.D, V=()=>S.units.V;
 
 /* ---------------- derive one component ---------------- */
 function derive(c){
@@ -220,7 +254,7 @@ function derive(c){
     d.tcK=num(c.tc)?c.tc:p.tc;d.pcBar=num(c.pc)?c.pc:p.pc;d.w=num(c.w)?c.w:p.w;
   }else{
     d.name=(c.name||"").trim()||"Cut";
-    if(num(c.api)){d.api=c.api;d.sg=141.5/(131.5+c.api)}else d.issues.push("enter API gravity");
+    if(num(c.sg)&&c.sg>0){d.sg=c.sg;d.api=141.5/c.sg-131.5}else d.issues.push("enter the density");
     if(c.d86.every(num)){
       d.t=c.d86.slice();d.avg=avgBP(d.t);d.vabpF=d.avg.VABP;d.meabpF=d.avg.MeABP;
       if(num(d.sg))d.mw=mwRiazi(d.meabpF,d.sg);
@@ -235,7 +269,7 @@ function derive(c){
   if(num(c.bpsd)){d.fromBpsd=true;d.bpsd=c.bpsd;
     if(num(d.mw)&&num(d.sg)&&d.mw>0)d.flow=c.bpsd*LB_BBL*d.sg/(24*d.mw);
     else d.issues.push(c.type==="cut"?"BPSD needs Mwt: enter the D86 points or Mwt":"select the component");
-  }else if(num(c.molar))d.flow=c.molar;else d.issues.push("enter volume flow (BPSD) or molar flow");
+  }else if(num(c.molar))d.flow=c.molar;else d.issues.push("enter volume flow or molar flow");
   if(num(d.flow)&&d.flow<0)d.issues.push("flow cannot be negative");
   return d}
 
@@ -251,13 +285,13 @@ function cardHTML(c,i){
   const who=c.type==="pure"
     ? `<select id="c${i}-code" data-i="${i}" data-k="code" aria-label="Component"><option value="">Select component…</option>${PURE.map(p=>`<option value="${p.code}"${p.code===c.code?" selected":""}>${p.code} – ${p.name}</option>`).join("")}</select>`
     : `<input id="c${i}-name" data-i="${i}" data-k="name" value="${esc(c.name||"")}" aria-label="Cut name" style="font-family:var(--f-body)">`;
-  let body=`<div class="grid">${field(i,"bpsd","Flow, BPSD")}${field(i,"molar","Flow, lbmol/h")}`;
+  let body=`<div class="grid">${field(i,"bpsd",`Flow, ${V()}`)}${field(i,"molar","Flow, lbmol/h")}`;
   if(c.type==="pure"){
-    body+=`${out(i,"mwo","Mwt")}${out(i,"sgo","SG 60/60")}${out(i,"apio","API")}</div>
+    body+=`${out(i,"mwo","Mwt")}${out(i,"deno",`Density, ${D()}`)}${out(i,"sgo","SG 60/60")}</div>
       <span class="sub">Critical properties (database, editable)</span>
       <div class="grid">${field(i,"tc",`Tc, ${T()}`)}${field(i,"pc",`Pc, ${PA()}`)}${field(i,"w","ω")}</div>`;
   }else{
-    body+=`${field(i,"api","API")}${out(i,"sgo","SG 60/60")}</div>
+    body+=`${field(i,"dens",`Density, ${D()}`)}${out(i,"sgo","SG 60/60")}</div>
       <span class="sub">ASTM D86, ${T()}</span>
       <div class="grid">${[10,30,50,70,90].map((p,j)=>field(i,"d"+j,p+" % vol")).join("")}</div>
       <div class="grid">${field(i,"vabp",`VABP, ${T()}`)}${out(i,"meabp",`MeABP, ${T()}`)}${field(i,"mw","Mwt")}
@@ -272,16 +306,16 @@ function setF(i,k,val,calc,dig){
 }
 function updateCard(i){
   const c=S.comps[i],d=derive(c);
-  setF(i,"bpsd",c.bpsd,false);
+  setF(i,"bpsd",num(c.bpsd)?fromBPSD(c.bpsd,V()):null,false);
   setF(i,"molar",d.fromBpsd?d.flow:c.molar,!!d.fromBpsd,2);
   setF(i,"sgo",d.sg,true,4);
   if(c.type==="pure"){
-    setF(i,"mwo",d.mw,true,3);setF(i,"apio",d.api,true,1);
+    setF(i,"mwo",d.mw,true,3);setF(i,"deno",num(d.sg)?fromSG(d.sg,D()):null,true,dDig(D()));
     setF(i,"tc",num(d.tcK)?fromF(KtoF(d.tcK),T()):null,false);
     setF(i,"pc",num(d.pcBar)?fromPsia(d.pcBar*PSI_BAR,PA()):null,false);
     setF(i,"w",d.w,false);
   }else{
-    setF(i,"api",c.api,false);
+    setF(i,"dens",num(c.sg)?fromSG(c.sg,D()):null,false);
     c.d86.forEach((v,j)=>setF(i,"d"+j,num(v)?fromF(v,T()):null,false));
     const a=!!d.avg;
     setF(i,"vabp",num(d.vabpF)?fromF(d.vabpF,T()):null,a,1);
@@ -316,13 +350,15 @@ function renderOp(){
       <option value="MeABP"${S.op.tb==="MeABP"?" selected":""}>MeABP (when D86 is given)</option></select></label>`;
 }
 function renderDB(){
-  document.getElementById("p-db").innerHTML=`<table><thead><tr><th>Code</th><th>Component</th><th>Mwt</th><th>SG</th><th>API</th><th>Tc, ${T()}</th><th>Pc, ${PA()}</th><th>ω</th></tr></thead><tbody>${
-    PURE.map(p=>`<tr><td>${p.code}</td><td style="text-align:left">${p.name}</td><td>${p.mw.toFixed(3)}</td><td>${p.sg.toFixed(4)}</td><td>${(141.5/p.sg-131.5).toFixed(1)}</td><td>${fromF(KtoF(p.tc),T()).toFixed(1)}</td><td>${fromPsia(p.pc*PSI_BAR,PA()).toFixed(pDig(PA()))}</td><td>${p.w.toFixed(4)}</td></tr>`).join("")}</tbody></table>`}
+  document.getElementById("p-db").innerHTML=`<table><thead><tr><th>Code</th><th>Component</th><th>Mwt</th><th>SG</th><th>Density, ${D()}</th><th>Tc, ${T()}</th><th>Pc, ${PA()}</th><th>ω</th></tr></thead><tbody>${
+    PURE.map(p=>`<tr><td>${p.code}</td><td style="text-align:left">${p.name}</td><td>${p.mw.toFixed(3)}</td><td>${p.sg.toFixed(4)}</td><td>${fromSG(p.sg,D()).toFixed(dDig(D()))}</td><td>${fromF(KtoF(p.tc),T()).toFixed(1)}</td><td>${fromPsia(p.pc*PSI_BAR,PA()).toFixed(pDig(PA()))}</td><td>${p.w.toFixed(4)}</td></tr>`).join("")}</tbody></table>`}
 
 /* ---------------- main calculation ---------------- */
+let reportText="";
 function calc(){
   const ro=document.getElementById("readout"),tab=document.getElementById("p-table"),st=document.getElementById("steps");
-  const fail=m=>{ro.className="readout";ro.innerHTML=`<span class="lab">Overhead drum temperature</span><div class="msg">${esc(m)}</div>`;
+  const fail0=m=>{reportText="";document.getElementById("report").innerHTML=`<h1>Distillation Column Overhead Temperature Estimator</h1><p>Developer: ${DEV}</p><p>${esc(m)}</p>`};
+  const fail=m=>{fail0(m);ro.className="readout";ro.innerHTML=`<span class="lab">Overhead drum temperature</span><div class="msg">${esc(m)}</div>`;
     tab.innerHTML=`<pre><i>Results appear here once all inputs are complete.</i></pre>`;st.innerHTML="<i>Results appear here once all inputs are complete.</i>"};
   if(!S.comps.length)return fail("Add at least one component.");
   const ds=S.comps.map(derive);
@@ -366,12 +402,14 @@ function calc(){
   const inPb=b=>pa==="bar a"?"":`  [${fromPsia(b*PSI_BAR,pa).toFixed(pd)} ${pa}]`;
   const inPp=p=>pa==="psia"?"":`  [${fromPsia(p,pa).toFixed(pd)} ${pa}]`;
   const L=[],H=s=>L.push(`<b>${s}</b>`),A=s=>L.push(esc(s));
-  L.push(`<i>Display units: ${tu}, ${esc(P())}. Correlations run in °F/°R/K/bar/psia; [ ] = selected units.</i>`,"");
+  L.push(`<i>Display units: ${tu}, ${esc(P())}, density ${D()}, volume flow ${V()}. Correlations run in °F/°R/K/bar/psia; [ ] = selected units.</i>`,"");
   H("STEP 1 – Characterisation of petroleum cuts");
   const cuts=ds.filter(d=>d.type==="cut");if(!cuts.length)A("  (no petroleum cuts)");
   for(const d of cuts){
     L.push(`<em>  ${esc(d.name)}</em>`);
-    A(`    SG = 141.5 / (131.5 + ${+d.api.toFixed(4)}) = ${d.sg.toFixed(4)}`);
+    {const du=D(),dv=+fromSG(d.sg,du).toFixed(4);
+     A(du==="API"?`    SG = 141.5 / (131.5 + ${dv}) = ${d.sg.toFixed(4)}`:du==="SG"?`    SG = ${d.sg.toFixed(4)} (entered)`:
+       du==="kg/m³"?`    SG = ${dv} kg/m³ / ${RHO_KG} = ${d.sg.toFixed(4)}`:`    SG = ${dv} lb/ft³ / ${RHO_LB} = ${d.sg.toFixed(4)}`)}
     if(d.avg){const t=d.t,a=d.avg,x=(a.VABP-32).toFixed(2),sl=a.SL.toFixed(3),R=a.MeABP+459.67;
       if(tu!=="°F")A(`    ASTM D86 (${tu}): ${t.map(v=>fromF(v,tu).toFixed(1)).join("  ")}`);
       A(`    ASTM D86 (°F): ${t.map(v=>v.toFixed(1)).join("  ")}`);
@@ -392,7 +430,8 @@ function calc(){
   }
   L.push("");H("STEP 2 – Molar flows   lbmol/h = BPSD × 350.16 × SG / (24 × Mwt)");
   for(const d of ds){const nm=d.name.slice(0,22).padEnd(22);
-    A(d.fromBpsd?`  ${nm} ${d.bpsd.toFixed(1)} × 350.16 × ${d.sg.toFixed(4)} / (24 × ${d.mw.toFixed(2)}) = ${d.flow.toFixed(2)}`:`  ${nm} ${d.flow.toFixed(2)}  (entered)`)}
+    const vu=V(),cv=vu==="BPSD"?"":`${+fromBPSD(d.bpsd||0,vu).toFixed(3)} ${vu} × ${vu==="m³/hr"?BPSD_M3H:BPSD_FT3H} = ${(d.bpsd||0).toFixed(1)} BPSD;  `;
+    A(d.fromBpsd?`  ${nm} ${cv}${d.bpsd.toFixed(1)} × 350.16 × ${d.sg.toFixed(4)} / (24 × ${d.mw.toFixed(2)}) = ${d.flow.toFixed(2)}`:`  ${nm} ${d.flow.toFixed(2)}  (entered)`)}
   L.push(`<em>  Σ fi = ${total.toFixed(2)} lbmol/h</em>`,"");
   H("STEP 3 – Hydrocarbon partial pressure   steam used: "+(o.steam?"Yes → P_HC = P_overhead − P_water @ T":"No → P_HC = P_overhead"));
   A(`  P_overhead = ${fin(opGet("p"))} ${P()} = ${o.pPsia.toFixed(3)} psia${inPp(o.pPsia)}`);
@@ -410,6 +449,26 @@ function calc(){
   L.push("");H("STEP 6 – Design temperature");
   L.push(`<em>  Design T = ${+TdesD.toFixed(2)} ${tu}</em>   (rounded down to nearest ${step} ${tu})`);
   st.innerHTML=L.join("\n");
+
+  // ---- printable / copyable report
+  const when=new Date().toLocaleString(),du=D(),vu=V(),n=(v,k)=>num(v)?v.toFixed(k):"";
+  const opRows=[["Overhead pressure",`${fin(opGet("p"))} ${P()}`],["Trial temperature T1",`${fin(T1D)} ${tu}`],["Trial temperature T2",`${fin(T2D)} ${tu}`],
+    ["Round design T down to",`${step} ${tu}`],["Steam used",o.steam?"Yes":"No"],["Cut boiling point for Tc, Pc, ω",o.tb]];
+  const compRows=ds.map((d,i)=>{const c=S.comps[i],t=c.type==="cut"?c.d86.map(v=>num(v)?fromF(v,tu).toFixed(1):""):["","","","",""];
+    return `<tr><td>${i+1}</td><td>${c.type==="cut"?"Cut":"Pure"}</td><td style="text-align:left">${esc(d.name)}</td><td>${num(c.bpsd)?n(fromBPSD(c.bpsd,vu),2):""}</td><td>${n(d.flow,2)}</td><td>${n(fromSG(d.sg,du),dDig(du))}</td><td>${n(d.sg,4)}</td>${t.map(x=>`<td>${x}</td>`).join("")}<td>${num(d.vabpF)?fromF(d.vabpF,tu).toFixed(1):""}</td><td>${num(d.meabpF)?fromF(d.meabpF,tu).toFixed(1):""}</td><td>${n(d.mw,2)}</td><td>${fromF(KtoF(d.tcK),tu).toFixed(1)}</td><td>${fromPsia(d.pcBar*PSI_BAR,pa).toFixed(pd)}</td><td>${d.w.toFixed(4)}</td></tr>`}).join("");
+  const resLine=`Overhead drum temperature = ${TintD.toFixed(1)} ${tu}   |   Design temperature = ${+TdesD.toFixed(2)} ${tu}   |   Steam used: ${o.steam?"Yes":"No"}`;
+  document.getElementById("report").innerHTML=`<h1>Distillation Column Overhead Temperature Estimator</h1>
+   <p>Developer: <b>${DEV}</b></p><p>Report date: ${esc(when)}</p>
+   <h2>Input data</h2>
+   <p>Units: temperature ${tu}, pressure ${esc(P())}, density ${du}, volume flow ${vu}, molar flow lbmol/h</p>
+   <table><tbody>${opRows.map(r=>`<tr><td style="text-align:left">${r[0]}</td><td style="text-align:left">${esc(r[1])}</td></tr>`).join("")}</tbody></table>
+   <p>&nbsp;</p>
+   <table><thead><tr><th>#</th><th>Type</th><th>Component</th><th>Volume flow, ${vu}</th><th>Molar flow, lbmol/h</th><th>Density, ${du}</th><th>SG</th><th>D86 10%</th><th>30%</th><th>50%</th><th>70%</th><th>90% (${tu})</th><th>VABP, ${tu}</th><th>MeABP, ${tu}</th><th>Mwt</th><th>Tc, ${tu}</th><th>Pc, ${pa}</th><th>ω</th></tr></thead><tbody>${compRows}</tbody></table>
+   <h2>Result</h2><p class="res">${resLine}</p>${outside?"<p>Note: the result lies outside T1–T2.</p>":""}
+   <h2>Step-by-step calculation</h2><pre>${L.join("\n")}</pre>
+   <p>&nbsp;</p><p>Developer: ${DEV}</p>`;
+  reportText=["Distillation Column Overhead Temperature Estimator","Developer: "+DEV,"Report date: "+when,"",
+    "INPUT DATA",...opRows.map(r=>"  "+r[0]+": "+r[1]),"","RESULT","  "+resLine,"","STEP-BY-STEP CALCULATION",st.textContent,"","Developer: "+DEV].join("\n");
 }
 
 const EQ=`<b>A) Average boiling points from ASTM D86 – API TDB Procedure 2B1.1 (°F)</b>
@@ -455,6 +514,10 @@ const EQ=`<b>A) Average boiling points from ASTM D86 – API TDB Procedure 2B1.1
 <b>I) Design temperature</b>
    Design T = interpolated T rounded down (e.g. to the nearest 5°)
 
+<b>J) Unit conversions</b>
+   Density:  SG = 141.5 / (131.5 + API) = ρ[kg/m³] / 999.016 = ρ[lb/ft³] / 62.3664
+   Volume flow:  BPSD = m³/hr × 150.9555 = ft³/hr × 4.274512
+
 <i>Correlations run in their own units; inputs and results use the units selected at the top.</i>`;
 
 /* ---------------- events ---------------- */
@@ -466,7 +529,9 @@ compsBox.addEventListener("input",e=>{
   if(k==="name")c.name=el.value;
   else if(k==="code")return;
   else{const v=parse(el.value);
-    if(k==="bpsd"||k==="molar"||k==="api"||k==="mw"||k==="w")c[k]=v;
+    if(k==="molar"||k==="mw"||k==="w")c[k]=v;
+    else if(k==="bpsd")c.bpsd=num(v)?toBPSD(v,V()):null;
+    else if(k==="dens")c.sg=num(v)?toSG(v,D()):null;
     else if(k==="vabp")c.vabpF=num(v)?toF(v,T()):null;
     else if(k[0]==="d")c.d86[+k[1]]=num(v)?toF(v,T()):null;
     else if(k==="tc")c.tc=num(v)?FtoK(toF(v,T())):null;
@@ -498,9 +563,19 @@ function fillUnits(){
   const ut=document.getElementById("u-t"),up=document.getElementById("u-p");
   ut.innerHTML=TUNITS.map(u=>`<option${u===T()?" selected":""}>${u}</option>`).join("");
   up.innerHTML=PUNITS.map(u=>`<option${u===P()?" selected":""}>${u}</option>`).join("");
+  document.getElementById("u-d").innerHTML=DUNITS.map(u=>`<option${u===D()?" selected":""}>${u}</option>`).join("");
+  document.getElementById("u-v").innerHTML=VUNITS.map(u=>`<option${u===V()?" selected":""}>${u}</option>`).join("");
 }
 document.getElementById("u-t").addEventListener("change",e=>{S.units.T=e.target.value;renderAll()});
 document.getElementById("u-p").addEventListener("change",e=>{S.units.P=e.target.value;renderAll()});
+document.getElementById("u-d").addEventListener("change",e=>{S.units.D=e.target.value;renderAll()});
+document.getElementById("u-v").addEventListener("change",e=>{S.units.V=e.target.value;renderAll()});
+const hasPrint=!!(window.AndroidBridge&&window.AndroidBridge.printReport);
+document.getElementById("btn-pdf").hidden=!hasPrint;
+document.getElementById("btn-pdf").addEventListener("click",()=>{try{window.AndroidBridge.printReport()}catch(e){}});
+document.getElementById("btn-copy").addEventListener("click",()=>{
+  const msg=document.getElementById("copy-msg"),done=t=>{msg.textContent=t;setTimeout(()=>msg.textContent="",2500)};
+  try{navigator.clipboard.writeText(reportText).then(()=>done("Copied"),()=>done("Copy is not available here"))}catch(e){done("Copy is not available here")}});
 let tabSel="table";try{tabSel=localStorage.getItem(KEY+"-tab")||"table"}catch(e){}
 function showTab(t){tabSel=t;document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
   ["table","steps","eq","db"].forEach(x=>document.getElementById("p-"+x).hidden=x!==t);try{localStorage.setItem(KEY+"-tab",t)}catch(e){}}
