@@ -1,0 +1,30 @@
+# Distillation Column Overhead Temperature Estimator
+
+**Developer: Process engineer Ahmed Mezer**
+
+Android app that estimates the overhead drum temperature of a distillation column
+from the overhead component flows.
+
+## Download
+
+Get **ColumnOverheadTemp.apk** from the [latest release](../../releases/latest),
+open it on the phone and allow installation from unknown sources.
+Works offline on Android 5.0 and newer.
+
+## What it does
+
+- Pure components (C1 to C5, cyclopentane) from a built-in database, and petroleum cuts.
+- Flow as BPSD or lbmol/h.
+- Cuts from API gravity and ASTM D86: VABP and MeABP by API TDB Procedure 2B1.1,
+  molecular weight by API TDB equation 2B2.1-1.
+- Critical properties by Riazi-Daubert, acentric factor by Lee-Kesler, K-values by Wilson.
+- Drum temperature where Σ fi·Ki = Σ fi, interpolated between two trial temperatures.
+- "Steam used" option: with steam, P_HC = P_overhead − water vapour pressure.
+- Selectable temperature and pressure units, step-by-step solution with every equation.
+
+## Build
+
+`./gradlew assembleDebug`, or open the folder in Android Studio and use Build > Build APK(s).
+Every push to `main` builds the APK with GitHub Actions and attaches it to the release.
+
+The calculator itself is `app/src/main/assets/index.html`.

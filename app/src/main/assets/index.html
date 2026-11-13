@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Column Overhead Temperature</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="author" content="Process engineer: Ahmed Mezer">
+<style>
+/* Layout: single mobile column — header plate, units bar, component cards, operating data, result readout, tabbed detail */
+:root{
+  --bg:#edf1f3; --surface:#ffffff; --ink:#14212b; --muted:#5a6a77; --line:#d3dbe1;
+  --accent:#0a6a86; --accent-ink:#ffffff; --calc:#e2eff4; --calc-ink:#0b4e63; --field:#ffffff;
+  --good:#1d7546; --good-bg:#e1f3e8; --warn:#8d6100; --warn-bg:#fdf1d2; --bad:#ad3527; --bad-bg:#fbe4df;
+  --hot:#c25d17;
+  --f-display:"IBM Plex Sans Condensed","Roboto Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",Roboto,"Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Consolas,"Roboto Mono",monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e161b; --surface:#16212a; --ink:#e2e9ee; --muted:#91a2af; --line:#2a3944;
+  --accent:#53b6d4; --accent-ink:#04202a; --calc:#123039; --calc-ink:#9ed6e8; --field:#0f1a21;
+  --good:#63cf92; --good-bg:#12301f; --warn:#efc25b; --warn-bg:#33290e; --bad:#ff8b7b; --bad-bg:#3a1915;
+  --hot:#f2995c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e161b; --surface:#16212a; --ink:#e2e9ee; --muted:#91a2af; --line:#2a3944;
+  --accent:#53b6d4; --accent-ink:#04202a; --calc:#123039; --calc-ink:#9ed6e8; --field:#0f1a21;
+  --good:#63cf92; --good-bg:#12301f; --warn:#efc25b; --warn-bg:#33290e; --bad:#ff8b7b; --bad-bg:#3a1915;
+  --hot:#f2995c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-body);margin:0}
+.wrap{max-width:780px;margin:0 auto;padding-block:16px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:18px}
+header.plate{display:flex;flex-direction:column;gap:2px;border-bottom:2px solid var(--ink);padding-bottom:10px}
+header.plate .tag{font:600 11px/1 var(--f-mono);letter-spacing:.12em;color:var(--hot);text-transform:uppercase}
+header.plate h1{font:700 clamp(22px,5.4vw,30px)/1.1 var(--f-display);margin:4px 0 0;text-wrap:balance;letter-spacing:.01em}
+header.plate .dev{color:var(--muted);font-size:13px}
+header.plate .dev b{color:var(--ink);font-weight:600}
+h2{font:700 13px/1 var(--f-display);letter-spacing:.14em;text-transform:uppercase;margin:0;color:var(--muted)}
+.sec{display:flex;flex-direction:column;gap:10px}
+.units{display:grid;grid-template-columns:1fr 1fr;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+label.f{display:flex;flex-direction:column;gap:3px;min-width:0}
+label.f>span{font-size:12px;line-height:1.25;color:var(--muted)}
+input,select{font:500 15px var(--f-mono);color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:7px;padding:8px 9px;width:100%;min-width:0}
+select{font-family:var(--f-body)}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input.calc{background:var(--calc);color:var(--calc-ink);border-color:transparent}
+input[readonly]{cursor:default}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px 10px;align-items:end}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.card .top{display:flex;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:none}
+.seg button{border:0;background:transparent;color:var(--muted);font:600 13px var(--f-body);padding:7px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.card .top .grow{flex:1;min-width:0}
+.idx{font:600 12px var(--f-mono);color:var(--muted);flex:none;width:22px}
+.del{border:1px solid var(--line);background:transparent;color:var(--bad);border-radius:8px;width:36px;height:36px;font-size:18px;cursor:pointer;flex:none}
+.sub{font:600 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.issue{font-size:13px;color:var(--bad);background:var(--bad-bg);padding:6px 9px;border-radius:7px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button.b{font:600 14px var(--f-body);border-radius:8px;padding:9px 14px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
+button.b.ghost{background:transparent;color:var(--accent)}
+.readout{border-radius:12px;padding:16px;border:1px solid var(--line);background:var(--surface);display:grid;gap:12px}
+.readout.good{background:var(--good-bg);border-color:transparent}
+.readout.warn{background:var(--warn-bg);border-color:transparent}
+.readout.bad{background:var(--bad-bg);border-color:transparent}
+.readout .lab{font:600 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.readout .big{font:700 clamp(38px,11vw,56px)/1 var(--f-display);font-variant-numeric:tabular-nums}
+.readout .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.readout .v{font:600 20px var(--f-mono);font-variant-numeric:tabular-nums}
+.verdict{font-weight:600}
+.good .verdict{color:var(--good)} .warn .verdict{color:var(--warn)} .bad .verdict{color:var(--bad)}
+.msg{font-size:14px;color:var(--bad)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{border:0;background:transparent;color:var(--muted);font:600 14px var(--f-body);padding:9px 10px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--hot)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+table{border-collapse:collapse;font:13px var(--f-mono);font-variant-numeric:tabular-nums;width:100%}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{font:600 12px var(--f-body);color:var(--muted);background:var(--bg)}
+th:first-child,td:first-child{text-align:left}
+tr.tot td{font-weight:600;color:var(--hot)}
+pre{margin:0;padding:12px;font:12.5px/1.55 var(--f-mono);white-space:pre;color:var(--ink)}
+pre b{color:var(--accent)} pre i{font-style:normal;color:var(--muted)} pre em{font-style:normal;font-weight:600;color:var(--hot)}
+footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;display:flex;flex-wrap:wrap;gap:4px 14px;justify-content:space-between}
+.hint{font-size:12.5px;color:var(--muted)}
+@media (prefers-reduced-motion: no-preference){.readout{transition:background-color .2s}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="plate">
+    <span class="tag">Overhead system · Drum temperature</span>
+    <h1>Distillation Column Overhead Temperature Estimator</h1>
+    <span class="dev">Developer: <b>Process engineer: Ahmed Mezer</b></span>
+  </header>
+
+  <div class="units">
+    <label class="f"><span>Temperature unit</span><select id="u-t"></select></label>
+    <label class="f"><span>Pressure unit</span><select id="u-p"></select></label>
+  </div>
+
+  <section class="sec">
+    <h2>1 · Overhead components</h2>
+    <p class="hint">Enter volume flow (BPSD) or molar flow (lbmol/h). For a cut, enter API with the ASTM D86 points, or API with VABP and Mwt. Shaded fields are calculated.</p>
+    <div id="comps" class="sec"></div>
+    <div class="btns">
+      <button class="b" data-act="add-pure">+ Pure component</button>
+      <button class="b" data-act="add-cut">+ Petroleum cut</button>
+      <button class="b ghost" data-act="example">Load worked example</button>
+      <button class="b ghost" data-act="clear">Clear all</button>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>2 · Operating data</h2>
+    <div class="card"><div class="grid" id="op"></div></div>
+  </section>
+
+  <section class="sec">
+    <h2>3 · Result</h2>
+    <div id="readout" class="readout"></div>
+    <div class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-tab="table">Results table</button>
+      <button role="tab" data-tab="steps">Step by step</button>
+      <button role="tab" data-tab="eq">Equations</button>
+      <button role="tab" data-tab="db">Pure database</button>
+    </div>
+    <div class="panel" id="p-table"></div>
+    <div class="panel" id="p-steps" hidden><pre id="steps"></pre></div>
+    <div class="panel" id="p-eq" hidden><pre id="eq"></pre></div>
+    <div class="panel" id="p-db" hidden></div>
+  </section>
+
+  <footer>
+    <span>Developed by Process engineer: Ahmed Mezer</span>
+    <span>Version 1.1 · API TDB 2B1.1, 2B2.1 · Wilson K-values</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ---------------- constants & database ---------------- */
+const ATM=14.695949, PSI_BAR=14.503774, PSI_KG=14.223343, LB_BBL=350.16;
+const PURE=[ // Mw, liquid SG 60/60, Tc K, Pc bar, omega (C3..cC5 Tc/Pc as in worked example)
+ {code:"C1",name:"Methane",mw:16.043,sg:0.3,tc:190.56,pc:45.99,w:0.0115},
+ {code:"C2",name:"Ethane",mw:30.07,sg:0.3564,tc:305.32,pc:48.72,w:0.0995},
+ {code:"C3",name:"Propane",mw:44.097,sg:0.5074,tc:369.9,pc:42.47,w:0.1522},
+ {code:"iC4",name:"Isobutane",mw:58.123,sg:0.563,tc:407.9,pc:36.4,w:0.1848},
+ {code:"nC4",name:"n-Butane",mw:58.123,sg:0.5841,tc:425.2,pc:37.96,w:0.201},
+ {code:"neoC5",name:"Neopentane",mw:72.15,sg:0.5966,tc:433.8,pc:31.99,w:0.1964},
+ {code:"iC5",name:"Isopentane",mw:72.15,sg:0.6246,tc:460.4,pc:33.81,w:0.227},
+ {code:"nC5",name:"n-Pentane",mw:72.15,sg:0.6311,tc:469.7,pc:33.69,w:0.251},
+ {code:"cC5",name:"Cyclopentane",mw:70.134,sg:0.7506,tc:518.6,pc:45.07,w:0.195}];
+const TUNITS=["°F","°C","K","°R"];
+const PUNITS=["kg/cm²g","kg/cm² a","bar g","bar a","psig","psia","kPa g","kPa a","MPa g","MPa a","atm"];
+
+/* ---------------- units ---------------- */
+const num=v=>typeof v==="number"&&isFinite(v);
+function toF(v,u){return u==="°C"?v*1.8+32:u==="K"?(v-273.15)*1.8+32:u==="°R"?v-459.67:v}
+function fromF(f,u){return u==="°C"?(f-32)/1.8:u==="K"?(f-32)/1.8+273.15:u==="°R"?f+459.67:f}
+function dToF(d,u){return (u==="°C"||u==="K")?d*1.8:d}
+function dFromF(d,u){return (u==="°C"||u==="K")?d/1.8:d}
+function psiPer(u){return u.startsWith("kg/cm²")?PSI_KG:u.startsWith("bar")?PSI_BAR:u.startsWith("kPa")?0.14503774:u.startsWith("MPa")?145.03774:u==="atm"?ATM:1}
+const isG=u=>u.endsWith("g");
+function toPsia(v,u){return v*psiPer(u)+(isG(u)?ATM:0)}
+function fromPsia(p,u){return (p-(isG(u)?ATM:0))/psiPer(u)}
+function absU(u){return {"kg/cm²g":"kg/cm² a","bar g":"bar a","psig":"psia","kPa g":"kPa a","MPa g":"MPa a"}[u]||u}
+function pDig(u){return u.startsWith("kPa")?1:u.startsWith("MPa")?4:u.startsWith("psi")?2:3}
+const FtoK=f=>(f-32)/1.8+273.15, KtoF=k=>(k-273.15)*1.8+32;
+
+/* ---------------- correlations ---------------- */
+function waterVP(tF){ // psia, Wagner-Pruss
+  const T=FtoK(tF),Tc=647.096,Pc=22.064,t=1-T/Tc;
+  const ln=(Tc/T)*(-7.85951783*t+1.84408259*t**1.5-11.7866497*t**3+22.6807411*t**3.5-15.9618719*t**4+1.80122502*t**7.5);
+  return Pc*Math.exp(ln)*145.0377}
+function avgBP(t){ // API TDB 2B1.1, F
+  const r={VABP:(t[0]+t[1]+t[2]+t[3]+t[4])/5,SL:(t[4]-t[0])/80};
+  const x=r.VABP-32,s=Math.max(r.SL,0);
+  r.D1=Math.exp(-3.062123-0.01829*x**0.6667+4.45818*s**0.25);
+  r.D2=Math.exp(-0.56379-0.007981*x**0.6667+3.04729*s**0.333);
+  r.D3=Math.exp(-0.23589-0.06906*x**0.45+1.8858*s**0.45);
+  r.D4=Math.exp(-0.94402-0.00865*x**0.6667+2.99791*s**0.333);
+  r.WABP=r.VABP+r.D1;r.MABP=r.VABP-r.D2;r.CABP=r.VABP-r.D3;r.MeABP=r.VABP-r.D4;return r}
+function mwRiazi(meF,sg){const Tb=meF+459.67; // API TDB 2B2.1-1
+  return 20.486*Math.exp(1.165e-4*Tb-7.78712*sg+1.1582e-3*Tb*sg)*Tb**1.26007*sg**4.98308}
+function crit(tbF,sg){const Tb=FtoK(tbF);
+  const tc=19.06232*Tb**0.58848*sg**0.3596, pc=5.53027e7*Tb**-2.3125*sg**2.3201, Tbr=Tb/tc;
+  const w=(-Math.log(pc/1.01325)-5.92714+6.09648/Tbr+1.28862*Math.log(Tbr)-0.169347*Tbr**6)/
+          (15.2518-15.6875/Tbr-13.4721*Math.log(Tbr)+0.43577*Tbr**6);
+  return {tcK:tc,pcBar:pc,w}}
+function kval(d,tF,phc){const Tr=FtoK(tF)/d.tcK,Pr=(phc/PSI_BAR)/d.pcBar;return Math.exp(5.37*(1+d.w)*(1-1/Tr))/Pr}
+
+/* ---------------- state ---------------- */
+const KEY="dcot-state-v1";
+function example(){return {
+  units:{T:"°F",P:"kg/cm²g"},
+  op:{pPsia:0.5*PSI_KG+ATM,t1F:130,t2F:160,step:5,tb:"VABP",steam:true},
+  comps:[["C3",28.56],["iC4",24.03],["nC4",155.49],["iC5",92.24],["nC5",187.62],["cC5",10.93]]
+    .map(([code,m])=>newPure(code,m)).concat([
+     newCut("C6-200 F",676.55,76.5,162,87), newCut("200-375 F",1780.21,55.9,284,118)])}}
+function newPure(code="",molar=null){return {type:"pure",code,molar,bpsd:null,tc:null,pc:null,w:null}}
+function newCut(name="New cut",molar=null,api=null,vabpF=null,mw=null){return {type:"cut",name,molar,bpsd:null,api,d86:[null,null,null,null,null],vabpF,mw}}
+let S;
+try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
+if(!S||!S.comps||!S.op||!S.units)S=example();
+if(S.op.steam===undefined)S.op.steam=true;
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+const T=()=>S.units.T, P=()=>S.units.P, PA=()=>absU(S.units.P);
+
+/* ---------------- derive one component ---------------- */
+function derive(c){
+  const d={issues:[],type:c.type};
+  if(c.type==="pure"){
+    const p=PURE.find(x=>x.code===c.code);
+    if(!p){d.name="—";d.issues.push("select a pure component");return d}
+    d.name=p.code+" – "+p.name;d.sg=p.sg;d.mw=p.mw;d.api=141.5/p.sg-131.5;
+    d.tcK=num(c.tc)?c.tc:p.tc;d.pcBar=num(c.pc)?c.pc:p.pc;d.w=num(c.w)?c.w:p.w;
+  }else{
+    d.name=(c.name||"").trim()||"Cut";
+    if(num(c.api)){d.api=c.api;d.sg=141.5/(131.5+c.api)}else d.issues.push("enter API gravity");
+    if(c.d86.every(num)){
+      d.t=c.d86.slice();d.avg=avgBP(d.t);d.vabpF=d.avg.VABP;d.meabpF=d.avg.MeABP;
+      if(num(d.sg))d.mw=mwRiazi(d.meabpF,d.sg);
+    }else{
+      if(num(c.vabpF))d.vabpF=c.vabpF;else d.issues.push("enter all five ASTM D86 points, or the VABP");
+      if(num(c.mw))d.mw=c.mw;
+    }
+    d.tbBasis=(S.op.tb==="MeABP"&&d.avg)?"MeABP":"VABP";
+    d.tbF=d.tbBasis==="MeABP"?d.meabpF:d.vabpF;
+    if(num(d.tbF)&&num(d.sg))Object.assign(d,crit(d.tbF,d.sg));
+  }
+  if(num(c.bpsd)){d.fromBpsd=true;d.bpsd=c.bpsd;
+    if(num(d.mw)&&num(d.sg)&&d.mw>0)d.flow=c.bpsd*LB_BBL*d.sg/(24*d.mw);
+    else d.issues.push(c.type==="cut"?"BPSD needs Mwt: enter the D86 points or Mwt":"select the component");
+  }else if(num(c.molar))d.flow=c.molar;else d.issues.push("enter volume flow (BPSD) or molar flow");
+  if(num(d.flow)&&d.flow<0)d.issues.push("flow cannot be negative");
+  return d}
+
+/* ---------------- rendering helpers ---------------- */
+const esc=s=>String(s).replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+const fx=(v,n)=>num(v)?v.toFixed(n):"—";
+const fin=v=>num(v)?String(+v.toFixed(4)):"";
+function field(i,k,label){return `<label class="f"><span>${label}</span><input id="c${i}-${k}" data-i="${i}" data-k="${k}" inputmode="decimal" autocomplete="off"></label>`}
+function out(i,k,label){return `<label class="f"><span>${label}</span><input id="c${i}-${k}" data-k="${k}" class="calc" readonly tabindex="-1"></label>`}
+
+function cardHTML(c,i){
+  const seg=`<div class="seg" role="group" aria-label="Type"><button data-act="type" data-i="${i}" data-v="pure" aria-pressed="${c.type==="pure"}">Pure</button><button data-act="type" data-i="${i}" data-v="cut" aria-pressed="${c.type==="cut"}">Cut</button></div>`;
+  const who=c.type==="pure"
+    ? `<select id="c${i}-code" data-i="${i}" data-k="code" aria-label="Component"><option value="">Select component…</option>${PURE.map(p=>`<option value="${p.code}"${p.code===c.code?" selected":""}>${p.code} – ${p.name}</option>`).join("")}</select>`
+    : `<input id="c${i}-name" data-i="${i}" data-k="name" value="${esc(c.name||"")}" aria-label="Cut name" style="font-family:var(--f-body)">`;
+  let body=`<div class="grid">${field(i,"bpsd","Flow, BPSD")}${field(i,"molar","Flow, lbmol/h")}`;
+  if(c.type==="pure"){
+    body+=`${out(i,"mwo","Mwt")}${out(i,"sgo","SG 60/60")}${out(i,"apio","API")}</div>
+      <span class="sub">Critical properties (database, editable)</span>
+      <div class="grid">${field(i,"tc",`Tc, ${T()}`)}${field(i,"pc",`Pc, ${PA()}`)}${field(i,"w","ω")}</div>`;
+  }else{
+    body+=`${field(i,"api","API")}${out(i,"sgo","SG 60/60")}</div>
+      <span class="sub">ASTM D86, ${T()}</span>
+      <div class="grid">${[10,30,50,70,90].map((p,j)=>field(i,"d"+j,p+" % vol")).join("")}</div>
+      <div class="grid">${field(i,"vabp",`VABP, ${T()}`)}${out(i,"meabp",`MeABP, ${T()}`)}${field(i,"mw","Mwt")}
+      ${out(i,"tco",`Tc, ${T()}`)}${out(i,"pco",`Pc, ${PA()}`)}${out(i,"wo","ω")}</div>`;
+  }
+  return `<div class="card" data-card="${i}"><div class="top"><span class="idx">${i+1}</span>${seg}<div class="grow">${who}</div><button class="del" data-act="del" data-i="${i}" aria-label="Delete row ${i+1}">×</button></div>${body}<div class="issue" id="c${i}-issue" hidden></div></div>`}
+
+function setF(i,k,val,calc,dig){
+  const el=document.getElementById(`c${i}-${k}`);if(!el)return;
+  if(el.dataset.i!==undefined){el.readOnly=calc;el.classList.toggle("calc",calc);el.tabIndex=calc?-1:0}
+  if(document.activeElement!==el||calc)el.value=num(val)?(calc?val.toFixed(dig):fin(val)):"";
+}
+function updateCard(i){
+  const c=S.comps[i],d=derive(c);
+  setF(i,"bpsd",c.bpsd,false);
+  setF(i,"molar",d.fromBpsd?d.flow:c.molar,!!d.fromBpsd,2);
+  setF(i,"sgo",d.sg,true,4);
+  if(c.type==="pure"){
+    setF(i,"mwo",d.mw,true,3);setF(i,"apio",d.api,true,1);
+    setF(i,"tc",num(d.tcK)?fromF(KtoF(d.tcK),T()):null,false);
+    setF(i,"pc",num(d.pcBar)?fromPsia(d.pcBar*PSI_BAR,PA()):null,false);
+    setF(i,"w",d.w,false);
+  }else{
+    setF(i,"api",c.api,false);
+    c.d86.forEach((v,j)=>setF(i,"d"+j,num(v)?fromF(v,T()):null,false));
+    const a=!!d.avg;
+    setF(i,"vabp",num(d.vabpF)?fromF(d.vabpF,T()):null,a,1);
+    setF(i,"meabp",a?fromF(d.meabpF,T()):null,true,1);
+    setF(i,"mw",a?d.mw:c.mw,a,2);
+    setF(i,"tco",num(d.tcK)?fromF(KtoF(d.tcK),T()):null,true,1);
+    setF(i,"pco",num(d.pcBar)?fromPsia(d.pcBar*PSI_BAR,PA()):null,true,pDig(PA()));
+    setF(i,"wo",d.w,true,4);
+  }
+  const iss=document.getElementById(`c${i}-issue`);
+  iss.hidden=!d.issues.length;iss.textContent=d.issues.length?"Missing: "+d.issues.join("; "):"";
+}
+function renderComps(){
+  const box=document.getElementById("comps");
+  box.innerHTML=S.comps.length?S.comps.map(cardHTML).join(""):`<div class="card hint">No components yet. Add a pure component or a petroleum cut, or load the worked example.</div>`;
+  S.comps.forEach((_,i)=>updateCard(i));
+}
+const OPF=[ // id, label, kind
+ ["p","Overhead pressure","P"],["t1","Trial temperature T1","T"],["t2","Trial temperature T2","T"],
+ ["step","Round design T down to","dT0"]];
+function opGet(k){const o=S.op;return k==="p"?fromPsia(o.pPsia,P()):k==="t1"?fromF(o.t1F,T()):k==="t2"?fromF(o.t2F,T()):o.step}
+function opSet(k,v){const o=S.op;if(k==="p")o.pPsia=num(v)?toPsia(v,P()):null;else if(k==="t1")o.t1F=num(v)?toF(v,T()):null;
+  else if(k==="t2")o.t2F=num(v)?toF(v,T()):null;else o.step=v}
+function renderOp(){
+  const u={P:P(),T:T(),dT:T(),dT0:T()};
+  document.getElementById("op").innerHTML=OPF.map(([k,l,kind])=>
+    `<label class="f"><span>${l}, ${u[kind]}</span><input id="op-${k}" data-op="${k}" inputmode="decimal" value="${fin(opGet(k))}"></label>`).join("")+
+    `<label class="f"><span>Steam used</span><select id="op-steam" data-op="steam">
+      <option value="yes"${S.op.steam?" selected":""}>Yes</option><option value="no"${S.op.steam?"":" selected"}>No</option></select></label>`+
+    `<label class="f" style="grid-column:span 2"><span>Cut boiling point for Tc, Pc, ω</span><select id="op-tb" data-op="tb">
+      <option value="VABP"${S.op.tb==="VABP"?" selected":""}>VABP (as worked example)</option>
+      <option value="MeABP"${S.op.tb==="MeABP"?" selected":""}>MeABP (when D86 is given)</option></select></label>`;
+}
+function renderDB(){
+  document.getElementById("p-db").innerHTML=`<table><thead><tr><th>Code</th><th>Component</th><th>Mwt</th><th>SG</th><th>API</th><th>Tc, ${T()}</th><th>Pc, ${PA()}</th><th>ω</th></tr></thead><tbody>${
+    PURE.map(p=>`<tr><td>${p.code}</td><td style="text-align:left">${p.name}</td><td>${p.mw.toFixed(3)}</td><td>${p.sg.toFixed(4)}</td><td>${(141.5/p.sg-131.5).toFixed(1)}</td><td>${fromF(KtoF(p.tc),T()).toFixed(1)}</td><td>${fromPsia(p.pc*PSI_BAR,PA()).toFixed(pDig(PA()))}</td><td>${p.w.toFixed(4)}</td></tr>`).join("")}</tbody></table>`}
+
+/* ---------------- main calculation ---------------- */
+function calc(){
+  const ro=document.getElementById("readout"),tab=document.getElementById("p-table"),st=document.getElementById("steps");
+  const fail=m=>{ro.className="readout";ro.innerHTML=`<span class="lab">Overhead drum temperature</span><div class="msg">${esc(m)}</div>`;
+    tab.innerHTML=`<pre><i>Results appear here once all inputs are complete.</i></pre>`;st.innerHTML="<i>Results appear here once all inputs are complete.</i>"};
+  if(!S.comps.length)return fail("Add at least one component.");
+  const ds=S.comps.map(derive);
+  const bad=ds.findIndex(d=>d.issues.length);
+  if(bad>=0)return fail(`Component ${bad+1} (${ds[bad].name}): ${ds[bad].issues[0]}.`);
+  const o=S.op;
+  if(![o.pPsia,o.t1F,o.t2F,o.step].every(num))return fail("Complete all operating data fields.");
+  if(o.step<=0)return fail("The rounding step must be greater than zero.");
+  if(Math.abs(o.t1F-o.t2F)<1e-9)return fail("T1 and T2 must be different.");
+  if(o.pPsia<=0)return fail("Overhead pressure must be above absolute zero.");
+  const pw=t=>o.steam?waterVP(t):0;
+  const phc1=o.pPsia-pw(o.t1F),phc2=o.pPsia-pw(o.t2F);
+  if(phc1<=0||phc2<=0)return fail("Water vapour pressure exceeds the drum pressure at a trial temperature. Lower T1 or T2.");
+  for(const d of ds){if(!(d.tcK>0&&d.pcBar>0&&num(d.w)))return fail(`${d.name}: Tc, Pc and ω are required.`)}
+
+  const tu=T(),pa=PA(),total=ds.reduce((s,d)=>s+d.flow,0);
+  let S1=0,S2=0;const rows=ds.map(d=>{const k1=kval(d,o.t1F,phc1),k2=kval(d,o.t2F,phc2);S1+=d.flow*k1;S2+=d.flow*k2;return {d,k1,k2}});
+  const T1D=fromF(o.t1F,tu),T2D=fromF(o.t2F,tu);
+  const TintD=T1D+(total-S1)/(S2-S1)*(T2D-T1D);
+  // exact root by bisection, F
+  const sum=tF=>{const ph=o.pPsia-pw(tF);return ds.reduce((s,d)=>s+d.flow*kval(d,tF,ph),0)};
+  let lo=40,hi=400;while(hi>lo&&o.pPsia-pw(hi)<=0.05)hi-=1;let exact=NaN;
+  if(sum(lo)<=total&&sum(hi)>=total){for(let n=0;n<100;n++){const m=(lo+hi)/2;if(sum(m)>total)hi=m;else lo=m}exact=(lo+hi)/2}
+  const step=o.step,TdesD=Math.floor(TintD/step)*step;
+  const outside=TintD<Math.min(T1D,T2D)||TintD>Math.max(T1D,T2D);
+  ro.className="readout";
+  ro.innerHTML=`<div><span class="lab">Overhead drum temperature (interpolated)</span><div class="big">${TintD.toFixed(1)} ${tu}</div></div>
+   <div class="row"><div><span class="lab">Design temperature</span><div class="v">${+TdesD.toFixed(2)} ${tu}</div></div>
+   <div><span class="lab">Steam used</span><div class="v">${o.steam?"Yes":"No"}</div></div>
+   <div><span class="lab">Exact root (iteration)</span><div class="v">${num(exact)?fromF(exact,tu).toFixed(1)+" "+tu:"—"}</div></div></div>
+   ${outside?`<div class="msg">The result lies outside T1–T2. Move the trial temperatures closer to it and recalculate.</div>`:""}`;
+
+  const pd=pDig(pa);
+  tab.innerHTML=`<table><thead><tr><th>Component</th><th>fi, lbmol/h</th><th>Mwt</th><th>Tc, ${tu}</th><th>Pc, ${pa}</th><th>ω</th><th>Ki @ ${+T1D.toFixed(1)}</th><th>fi·Ki @ ${+T1D.toFixed(1)}</th><th>Ki @ ${+T2D.toFixed(1)}</th><th>fi·Ki @ ${+T2D.toFixed(1)}</th></tr></thead><tbody>${
+    rows.map(({d,k1,k2})=>`<tr><td>${esc(d.name)}</td><td>${d.flow.toFixed(2)}</td><td>${fx(d.mw,1)}</td><td>${fromF(KtoF(d.tcK),tu).toFixed(1)}</td><td>${fromPsia(d.pcBar*PSI_BAR,pa).toFixed(pd)}</td><td>${d.w.toFixed(4)}</td><td>${k1.toFixed(3)}</td><td>${(d.flow*k1).toFixed(2)}</td><td>${k2.toFixed(3)}</td><td>${(d.flow*k2).toFixed(2)}</td></tr>`).join("")
+  }<tr class="tot"><td>Total</td><td>${total.toFixed(2)}</td><td></td><td></td><td></td><td></td><td></td><td>${S1.toFixed(2)}</td><td></td><td>${S2.toFixed(2)}</td></tr></tbody></table>`;
+
+  // ---- step by step
+  const inT=f=>tu==="°F"?"":`  [${fromF(f,tu).toFixed(1)} ${tu}]`;
+  const inTK=k=>tu==="K"?"":`  [${fromF(KtoF(k),tu).toFixed(1)} ${tu}]`;
+  const inPb=b=>pa==="bar a"?"":`  [${fromPsia(b*PSI_BAR,pa).toFixed(pd)} ${pa}]`;
+  const inPp=p=>pa==="psia"?"":`  [${fromPsia(p,pa).toFixed(pd)} ${pa}]`;
+  const L=[],H=s=>L.push(`<b>${s}</b>`),A=s=>L.push(esc(s));
+  L.push(`<i>Display units: ${tu}, ${esc(P())}. Correlations run in °F/°R/K/bar/psia; [ ] = selected units.</i>`,"");
+  H("STEP 1 – Characterisation of petroleum cuts");
+  const cuts=ds.filter(d=>d.type==="cut");if(!cuts.length)A("  (no petroleum cuts)");
+  for(const d of cuts){
+    L.push(`<em>  ${esc(d.name)}</em>`);
+    A(`    SG = 141.5 / (131.5 + ${+d.api.toFixed(4)}) = ${d.sg.toFixed(4)}`);
+    if(d.avg){const t=d.t,a=d.avg,x=(a.VABP-32).toFixed(2),sl=a.SL.toFixed(3),R=a.MeABP+459.67;
+      if(tu!=="°F")A(`    ASTM D86 (${tu}): ${t.map(v=>fromF(v,tu).toFixed(1)).join("  ")}`);
+      A(`    ASTM D86 (°F): ${t.map(v=>v.toFixed(1)).join("  ")}`);
+      A(`    VABP = (${t.map(v=>v.toFixed(1)).join(" + ")}) / 5 = ${a.VABP.toFixed(2)} °F${inT(a.VABP)}   [2B1.1]`);
+      A(`    SL   = (${t[4].toFixed(1)} − ${t[0].toFixed(1)}) / 80 = ${a.SL.toFixed(4)} °F/%`);
+      A(`    Δ1 = exp(−3.062123 − 0.01829·${x}^0.6667 + 4.45818·${sl}^0.25) = ${a.D1.toFixed(2)} → WABP = ${a.WABP.toFixed(2)} °F${inT(a.WABP)}`);
+      A(`    Δ2 = exp(−0.56379 − 0.007981·${x}^0.6667 + 3.04729·${sl}^0.333) = ${a.D2.toFixed(2)} → MABP = ${a.MABP.toFixed(2)} °F${inT(a.MABP)}`);
+      A(`    Δ3 = exp(−0.23589 − 0.06906·${x}^0.45 + 1.8858·${sl}^0.45) = ${a.D3.toFixed(2)} → CABP = ${a.CABP.toFixed(2)} °F${inT(a.CABP)}`);
+      A(`    Δ4 = exp(−0.94402 − 0.00865·${x}^0.6667 + 2.99791·${sl}^0.333) = ${a.D4.toFixed(2)} → MeABP = ${a.MeABP.toFixed(2)} °F = ${R.toFixed(2)} °R${inT(a.MeABP)}`);
+      A(`    M = 20.486·exp(1.165E-4·${R.toFixed(2)} − 7.78712·${d.sg.toFixed(4)} + 1.1582E-3·${R.toFixed(2)}·${d.sg.toFixed(4)})·${R.toFixed(2)}^1.26007·${d.sg.toFixed(4)}^4.98308`);
+      A(`      = ${d.mw.toFixed(2)}   [2B2.1-1]`);
+    }else A(`    VABP = ${d.vabpF.toFixed(1)} °F${inT(d.vabpF)} (entered)${num(d.mw)?`,  Mwt = ${d.mw.toFixed(1)} (entered)`:""}`);
+    const Tb=FtoK(d.tbF);
+    A(`    Tb (${d.tbBasis}) = ${d.tbF.toFixed(2)} °F = ${Tb.toFixed(2)} K`);
+    A(`    Tc = 19.06232 × ${Tb.toFixed(2)}^0.58848 × ${d.sg.toFixed(4)}^0.3596 = ${d.tcK.toFixed(2)} K${inTK(d.tcK)}`);
+    A(`    Pc = 5.53027E7 × ${Tb.toFixed(2)}^-2.3125 × ${d.sg.toFixed(4)}^2.3201 = ${d.pcBar.toFixed(3)} bar${inPb(d.pcBar)}`);
+    A(`    Tbr = ${Tb.toFixed(2)} / ${d.tcK.toFixed(2)} = ${(Tb/d.tcK).toFixed(4)}  →  ω = ${d.w.toFixed(4)}  (Lee–Kesler)`);
+  }
+  L.push("");H("STEP 2 – Molar flows   lbmol/h = BPSD × 350.16 × SG / (24 × Mwt)");
+  for(const d of ds){const nm=d.name.slice(0,22).padEnd(22);
+    A(d.fromBpsd?`  ${nm} ${d.bpsd.toFixed(1)} × 350.16 × ${d.sg.toFixed(4)} / (24 × ${d.mw.toFixed(2)}) = ${d.flow.toFixed(2)}`:`  ${nm} ${d.flow.toFixed(2)}  (entered)`)}
+  L.push(`<em>  Σ fi = ${total.toFixed(2)} lbmol/h</em>`,"");
+  H("STEP 3 – Hydrocarbon partial pressure   steam used: "+(o.steam?"Yes → P_HC = P_overhead − P_water @ T":"No → P_HC = P_overhead"));
+  A(`  P_overhead = ${fin(opGet("p"))} ${P()} = ${o.pPsia.toFixed(3)} psia${inPp(o.pPsia)}`);
+  A(`  T1 = ${T1D.toFixed(1)} ${tu} (${o.t1F.toFixed(1)} °F): ${o.steam?"Pw = "+waterVP(o.t1F).toFixed(3)+" psia → ":""}P_HC = ${phc1.toFixed(3)} psia = ${(phc1/PSI_BAR).toFixed(4)} bar${inPp(phc1)}`);
+  A(`  T2 = ${T2D.toFixed(1)} ${tu} (${o.t2F.toFixed(1)} °F): ${o.steam?"Pw = "+waterVP(o.t2F).toFixed(3)+" psia → ":""}P_HC = ${phc2.toFixed(3)} psia = ${(phc2/PSI_BAR).toFixed(4)} bar${inPp(phc2)}`);
+  L.push("");H("STEP 4 – K-values   Ki = exp[5.37(1+ω)(1 − Tc/T)] / (P_HC/Pc)");
+  A(`  ${"Component".padEnd(22)}${"Tr1".padStart(7)}${"Pr1".padStart(8)}${"K1".padStart(8)}${"fiK1".padStart(10)}${"Tr2".padStart(7)}${"Pr2".padStart(8)}${"K2".padStart(8)}${"fiK2".padStart(10)}`);
+  const T1K=FtoK(o.t1F),T2K=FtoK(o.t2F);
+  for(const {d,k1,k2} of rows)A(`  ${d.name.slice(0,21).padEnd(22)}${(T1K/d.tcK).toFixed(3).padStart(7)}${(phc1/PSI_BAR/d.pcBar).toFixed(4).padStart(8)}${k1.toFixed(3).padStart(8)}${(d.flow*k1).toFixed(2).padStart(10)}${(T2K/d.tcK).toFixed(3).padStart(7)}${(phc2/PSI_BAR/d.pcBar).toFixed(4).padStart(8)}${k2.toFixed(3).padStart(8)}${(d.flow*k2).toFixed(2).padStart(10)}`);
+  L.push(`<em>  Σ fi·Ki @ T1 = ${S1.toFixed(3)}      Σ fi·Ki @ T2 = ${S2.toFixed(3)}</em>`,"");
+  H("STEP 5 – Interpolation to Σ fi·Ki = Σ fi");
+  A(`  T = ${T1D.toFixed(1)} + (${total.toFixed(3)} − ${S1.toFixed(3)}) / (${S2.toFixed(3)} − ${S1.toFixed(3)}) × (${T2D.toFixed(1)} − ${T1D.toFixed(1)})`);
+  L.push(`<em>  T = ${TintD.toFixed(2)} ${tu}</em>`);
+  if(num(exact))L.push(`<i>  (exact root by iteration = ${fromF(exact,tu).toFixed(1)} ${tu})</i>`);
+  L.push("");H("STEP 6 – Design temperature");
+  L.push(`<em>  Design T = ${+TdesD.toFixed(2)} ${tu}</em>   (rounded down to nearest ${step} ${tu})`);
+  st.innerHTML=L.join("\n");
+}
+
+const EQ=`<b>A) Average boiling points from ASTM D86 – API TDB Procedure 2B1.1 (°F)</b>
+   VABP (tv) = (T10 + T30 + T50 + T70 + T90) / 5
+   SL = (T90 − T10) / 80                                   °F per % distilled
+   ln Δ1 = −3.062123 − 0.01829 (tv−32)^0.6667 + 4.45818 SL^0.25     (2B1.1-5)
+   ln Δ2 = −0.56379  − 0.007981(tv−32)^0.6667 + 3.04729 SL^0.333    (2B1.1-6)
+   ln Δ3 = −0.23589  − 0.06906 (tv−32)^0.45   + 1.8858  SL^0.45     (2B1.1-7)
+   ln Δ4 = −0.94402  − 0.00865 (tv−32)^0.6667 + 2.99791 SL^0.333    (2B1.1-8)
+   WABP = tv + Δ1   MABP = tv − Δ2   CABP = tv − Δ3   MeABP = tv − Δ4
+
+<b>B) Molecular weight of cuts – API TDB Procedure 2B2.1</b>
+   M = 20.486·exp(1.165×10⁻⁴·Tb − 7.78712·SG + 1.1582×10⁻³·Tb·SG)·Tb^1.26007·SG^4.98308
+   <i>Tb = MeABP in °R,  SG = 141.5 / (131.5 + API)                    (2B2.1-1)</i>
+
+<b>C) Volumetric to molar flow</b>
+   lbmol/h = BPSD × 350.16 × SG / (24 × Mwt)
+   <i>350.16 lb/bbl = water at 60 °F × 42 gal</i>
+
+<b>D) Hydrocarbon partial pressure</b>
+   Steam used = Yes:  P_HC = P_overhead − P_water vapour @ T     (absolute)
+   Steam used = No:   P_HC = P_overhead
+   <i>P_abs = P_gauge + 1 atm;  P_water from the Wagner–Pruss saturation curve</i>
+
+<b>E) Critical properties of cuts (Riazi–Daubert), Tb in K</b>
+   Tc = 19.06232 · Tb^0.58848 · SG^0.3596           (K)
+   Pc = 5.53027×10⁷ · Tb^−2.3125 · SG^2.3201        (bar)
+   <i>Tb = VABP (as in the worked example) or MeABP</i>
+
+<b>F) Acentric factor (Lee–Kesler), Tbr = Tb / Tc</b>
+        −ln(Pc/1.01325) − 5.92714 + 6.09648/Tbr + 1.28862·ln Tbr − 0.169347·Tbr⁶
+   ω = ─────────────────────────────────────────────────────────────
+            15.2518 − 15.6875/Tbr − 13.4721·ln Tbr + 0.43577·Tbr⁶
+
+<b>G) Equilibrium ratio (Wilson)</b>
+          exp[5.37 (1 + ωi)(1 − 1/Tri)]
+   Ki = ─────────────────────────────      Tr = T/Tc,  Pr = P_HC/Pc
+                     Pri
+
+<b>H) Drum temperature: T where Σ fi·Ki = Σ fi</b>
+   T = T1 + [(Σfi − Σ(fi·Ki)@T1) / (Σ(fi·Ki)@T2 − Σ(fi·Ki)@T1)] × (T2 − T1)
+
+<b>I) Design temperature</b>
+   Design T = interpolated T rounded down (e.g. to the nearest 5°)
+
+<i>Correlations run in their own units; inputs and results use the units selected at the top.</i>`;
+
+/* ---------------- events ---------------- */
+function parse(v){v=String(v).trim().replace(",",".");if(v==="")return null;const n=parseFloat(v);return isFinite(n)?n:null}
+const compsBox=document.getElementById("comps");
+compsBox.addEventListener("input",e=>{
+  const el=e.target,i=+el.dataset.i,k=el.dataset.k;if(!el.dataset.k||isNaN(i)||el.readOnly)return;
+  const c=S.comps[i];
+  if(k==="name")c.name=el.value;
+  else if(k==="code")return;
+  else{const v=parse(el.value);
+    if(k==="bpsd"||k==="molar"||k==="api"||k==="mw"||k==="w")c[k]=v;
+    else if(k==="vabp")c.vabpF=num(v)?toF(v,T()):null;
+    else if(k[0]==="d")c.d86[+k[1]]=num(v)?toF(v,T()):null;
+    else if(k==="tc")c.tc=num(v)?FtoK(toF(v,T())):null;
+    else if(k==="pc")c.pc=num(v)?toPsia(v,PA())/PSI_BAR:null;}
+  updateCard(i);calc();save();
+});
+compsBox.addEventListener("change",e=>{const el=e.target;if(el.dataset.k!=="code")return;
+  const c=S.comps[+el.dataset.i];c.code=el.value;c.tc=c.pc=c.w=null;updateCard(+el.dataset.i);calc();save()});
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act,i=+b.dataset.i;
+  if(a==="type"){const c=S.comps[i];if(c.type!==b.dataset.v){const keep={molar:c.molar,bpsd:c.bpsd};
+      S.comps[i]=Object.assign(b.dataset.v==="pure"?newPure():newCut(),keep)}}
+  else if(a==="del")S.comps.splice(i,1);
+  else if(a==="add-pure")S.comps.push(newPure());
+  else if(a==="add-cut")S.comps.push(newCut());
+  else if(a==="example")S=example();
+  else if(a==="clear")S.comps=[];
+  else return;
+  if(a==="example"){fillUnits();renderOp();renderDB()}
+  renderComps();calc();save();
+  if(a==="add-pure"||a==="add-cut"){const card=compsBox.lastElementChild;card&&card.scrollIntoView({block:"center",behavior:"smooth"})}
+});
+const opBox=document.getElementById("op");
+opBox.addEventListener("input",e=>{const k=e.target.dataset.op;if(!k||k==="tb"||k==="steam")return;opSet(k,parse(e.target.value));calc();save()});
+opBox.addEventListener("change",e=>{const k=e.target.dataset.op;
+  if(k==="steam")S.op.steam=e.target.value==="yes";else if(k==="tb"){S.op.tb=e.target.value;S.comps.forEach((_,i)=>updateCard(i))}else return;
+  calc();save()});
+function fillUnits(){
+  const ut=document.getElementById("u-t"),up=document.getElementById("u-p");
+  ut.innerHTML=TUNITS.map(u=>`<option${u===T()?" selected":""}>${u}</option>`).join("");
+  up.innerHTML=PUNITS.map(u=>`<option${u===P()?" selected":""}>${u}</option>`).join("");
+}
+document.getElementById("u-t").addEventListener("change",e=>{S.units.T=e.target.value;renderAll()});
+document.getElementById("u-p").addEventListener("change",e=>{S.units.P=e.target.value;renderAll()});
+let tabSel="table";try{tabSel=localStorage.getItem(KEY+"-tab")||"table"}catch(e){}
+function showTab(t){tabSel=t;document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
+  ["table","steps","eq","db"].forEach(x=>document.getElementById("p-"+x).hidden=x!==t);try{localStorage.setItem(KEY+"-tab",t)}catch(e){}}
+document.getElementById("tabs").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(b)showTab(b.dataset.tab)});
+function renderAll(){fillUnits();renderOp();renderComps();renderDB();calc();save()}
+document.getElementById("eq").innerHTML=EQ;
+showTab(tabSel);renderAll();
+</script>
+
+</body>
+</html>

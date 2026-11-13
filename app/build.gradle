@@ -1,0 +1,27 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.ahmedmezer.overheadtemp'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.ahmedmezer.overheadtemp"
+        minSdk 21          // Android 5.0 and newer (practically every phone in use)
+        targetSdk 34
+        versionCode 2
+        versionName "1.1"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Column Overhead Temp</string>
+    <string name="app_full_name">Distillation Column Overhead Temperature Estimator</string>
+    <string name="developer">Process engineer: Ahmed Mezer</string>
+</resources>
