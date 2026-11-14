@@ -1,7 +1,7 @@
 package com.ahmedmezer.overheadtemp;
 
 /*
- * Distillation Column Overhead Temperature Estimator
+ * Bubble point temperature calculation
  * Developer: Process engineer Ahmed Mezer
  *
  * Shows the calculator page (assets/index.html) full screen. Works offline.
@@ -22,7 +22,7 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
 
-    private static final String JOB_NAME = "Overhead temperature report";
+    private static final String JOB_NAME = "Bubble point temperature report";
     private WebView web;
 
     /** Methods the page can call as window.AndroidBridge.* */

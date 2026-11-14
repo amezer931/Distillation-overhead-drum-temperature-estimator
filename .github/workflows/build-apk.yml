@@ -18,18 +18,18 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
-          cp app/build/outputs/apk/debug/app-debug.apk ColumnOverheadTemp.apk
+          cp app/build/outputs/apk/debug/app-debug.apk BubblePointTemperature.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: ColumnOverheadTemp-apk
-          path: ColumnOverheadTemp.apk
+          name: BubblePointTemperature-apk
+          path: BubblePointTemperature.apk
       - name: Publish APK as a release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.4
-          name: Column Overhead Temp v1.4
+          tag_name: v1.5
+          name: Bubble point temperature calculation v1.5
           body: |
-            Distillation Column Overhead Temperature Estimator for Android (5.0 and newer).
+            Bubble point temperature calculation for Android (5.0 and newer).
             Developer: Process engineer Ahmed Mezer.
-            Download ColumnOverheadTemp.apk below and open it on the phone to install.
-          files: ColumnOverheadTemp.apk
+            Download BubblePointTemperature.apk below and open it on the phone to install.
+          files: BubblePointTemperature.apk
